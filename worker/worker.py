@@ -23,10 +23,14 @@ if os.environ['AWS_DEFAULT_REGION'] is None:
     sys.exit(-1)
 if bucket_name is None:
     LOG.warninig('Missing required environment variable: S3_BUCKET_NAME')
-    sys.exit(-1) 
+    sys.exit(-1)
 
 # connect to Amazon S3
 s3 = boto3.resource('s3')
+s3_client = boto3.client('s3')
+
+# define default output folder
+out_folder = 'results'
 
 try:
     s3.meta.client.head_bucket(Bucket=bucket_name)
@@ -47,12 +51,26 @@ def on_message(channel, method_frame, header_frame, body):
     LOG.info('Message has been received %s', body)
     channel.basic_ack(delivery_tag=method_frame.delivery_tag)
 
-    # Upload a new file
-    data = open('test.jpg', 'rb')
-    LOG.info('Uploading %s', 'test.jpg')
-    root_dir = body.split('/')[0]
-    bucket.put_object(Key=root_dir + '_results/test.jpg', Body=data)
-    LOG.info('Uploading done')
+    if '.jpg' in body:
+        s = body.split('/')
+        root_dir = s[0]
+        remote_file = s[1]
+        local_file = remote_file
+        root, ext = os.path.splitext(remote_file)
+        LOG.info('Simulating long processing ......')
+
+        sleep(60*5)
+
+        LOG.info('Copying file %s from S3', body)
+        s3_client.download_file(bucket_name, body, local_file)
+
+        results_key = '{0}/{1}_results{2}'.format(out_folder, root, ext)
+        LOG.info('Uploading %s', results_key)
+
+        # Upload a new file
+        data = open(local_file, 'rb')
+        bucket.put_object(Key=results_key, Body=data)
+        LOG.info('Uploading done')
 
 
 if __name__ == '__main__':
@@ -62,9 +80,10 @@ if __name__ == '__main__':
                                  epilog=examples)
     parser.add_argument('-p', '--port', action='store', dest='port', help='The port to listen on.', required=False, default=5672)
     parser.add_argument('-s', '--server', action='store', dest='server', help='The RabbitMQ server.', required=False, default='rabbitmq')
-    parser.add_argument('-i', '--in_folder', action='store', dest='in_folder', help='The bucket_name folder with image tiles to process', required=True)
+    parser.add_argument('-o', '--out_folder', action='store', dest='out_folder', help='The bucket folder to store processed results', required=True)
 
     args = parser.parse_args()
+    out_folder = args.out_folder
 
     # sleep a few seconds to allow RabbitMQ server to come up
     sleep(5)

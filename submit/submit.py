@@ -30,7 +30,6 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--port', action='store', dest='port', help='The port to listen on.', required=False, default=5672)
     parser.add_argument('-s', '--server', action='store', dest='server', help='The RabbitMQ server.', required=False, default='rabbitmq')
     parser.add_argument('-i', '--in_folder', action='store', dest='in_folder', help='The bucket_name folder with image tiles to process', required=True)
-    parser.add_argument('-r', '--repeat', action='store', dest='repeat', help='Number of times to repeat the message', required=False, default='30')
 
     args = parser.parse_args()
 

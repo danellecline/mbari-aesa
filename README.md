@@ -15,7 +15,7 @@ Link Docker account to Amazon Web Services [Docker cloud] (https://cloud.docker.
 [![ Docker cloud link ](https://github.com/danellecline/mbari-aesa/raw/master/img/docker-cloud-screenshot.png)]
 
 Create Amazon bucket
-[![ Amazon bucketd link ](https://github.com/danellecline/mbari-aesa/raw/master/img/aws-bucket.png)]
+[![ Amazon bucket link ](https://github.com/danellecline/mbari-aesa/raw/master/img/aws-bucket.png)]
 
 Store bucket id, secret key, region and bucket name in .env file. See example in .env.example
 
