@@ -23,10 +23,9 @@ Store bucket id, secret key, region and bucket name in .env file. See example in
     
     and add your credentials
 
-Create docker stack
+Cut and paste docker stack files docker-cloud.yml to Docker cloud account. TODO: how to automate this ?
 
-    $ 
-
+[![ Cloud stack link ](https://github.com/danellecline/mbari-aesa/raw/master/img/docker-stack-screenshot.png)]
 
 ## Local testing
 
