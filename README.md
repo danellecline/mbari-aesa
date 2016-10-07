@@ -7,7 +7,7 @@ Code for processing AESA images in the cloud
 - Install [Docker](https://docs.docker.com/installation/)
 - Install [Compose](https://docs.docker.com/compose/install/)
 - Create Amazon account [Amazon](http://www.amazon.com/)
-- Create Docker account [Docker](http://www.docker.com/)
+- Create Docker ID [Docker](http://hub.docker.com/)
 
 ## Installation
 
@@ -38,3 +38,7 @@ Start the management interface to see the message traffic
     
 If running locally http://127.0.0.1:15672/
     
+To make change to app code, only need to rebuild service and deploy that service, e.g. to just redeploy worker
+
+    $ docker-compose build worker
+    $ docker-compose up --no-deps -d worker
