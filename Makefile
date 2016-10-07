@@ -1,4 +1,4 @@
-.PHONY: all compose clean stop tag_latest push_latest
+.PHONY: all compose clean stop tag_latest push_latest push
 
 all: compose
 
@@ -16,9 +16,9 @@ tag_latest:
 	pushd submit; make build tag_latest; popd
 
 push_latest:
-	pushd worker; make build push push_latest; popd
-	pushd submit; make build push push_latest; popd
+	pushd worker; make build push_latest; popd
+	pushd submit; make build push_latest; popd
 
 push:
-	pushd worker; make build push push; popd
-	pushd submit; make build push push; popd
+	pushd worker; make build push; popd
+	pushd submit; make build push; popd
