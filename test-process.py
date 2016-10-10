@@ -5,7 +5,10 @@ import os
 import glob
 import shutil
 import subprocess
-
+import tarfile
+from shutil import copyfile
+from collections import namedtuple
+import math
 def get_dims(image):
     # get the height and width of a tile
     cmd = 'identify %s' % (image)
@@ -39,11 +42,17 @@ if __name__ == '__main__':
     if not os.path.isdir(tile_dir):
         os.makedirs(tile_dir)
 
-    frames = 1
     filenames = sorted(glob.glob(image_dir + '*.jpg'))
     display = ' --mbari-display-results --mbari-mark-interesting=BoundingBox '
     saliency_output=' -K --mega-combo-zoom=4 '
-    opts = ' --logverb=Debug --mbari-save-event-num=all --mbari-max-event-area=50000 --mbari-cache-size=0 --mbari-min-event-frames=1 --mbari-segment-algorithm-input-image=Luminance --mbari-saliency-dist=0 --mbari-saliency-input-image=Raw --mbari-tracking-mode=None --mbari-segment-algorithm=GraphCut --vc-chans=OIC --mbari-save-boring-events=False --shape-estim-mode=ConspicuityMap --use-older-version=false --ior-type=ShapeEst --maxnorm-type=FancyOne --mbari-saliency-input-image=Raw --mbari-max-evolve-msec=15000 --boring-sm-mv=1.5 --mbari-use-foa-mask-region=False --mbari-max-event-frames=%d --mbari-save-original-frame-spec=true --mbari-save-output --levelspec=2-4,3-4,2' % frames
+    opts = ' --logverb=Debug --mbari-save-event-num=all --mbari-max-event-area=20000 --mbari-min-event-area=100 --mbari-cache-size=0 ' \
+           '--mbari-min-event-frames=1 --mbari-segment-algorithm-input-image=Luminance --mbari-saliency-dist=0 ' \
+           '--mbari-saliency-input-image=Raw --mbari-tracking-mode=None --mbari-segment-algorithm=GraphCut ' \
+           '--vc-chans=O:5IC  --mbari-save-boring-events=False --shape-estim-mode=ConspicuityMap ' \
+           '--use-older-version=false --ior-type=ShapeEst --maxnorm-type=FancyOne --mbari-saliency-input-image=Raw ' \
+           '--mbari-max-evolve-msec=2000 --boring-sm-mv=0.5 --mbari-use-foa-mask-region=False ' \
+           '--mbari-max-event-frames=1 --mbari-save-original-frame-spec=true --mbari-save-output ' \
+           ' --mbari-max-WTA-points=20 '
     #-levelspec=1-3,2-4,1'
     #--levelspec=1-3,2-4,1'
     #--levelspec=0-3,2-5,2
@@ -52,66 +61,81 @@ if __name__ == '__main__':
     #w = 22516/8
     #h = 2343/8
 
-    for f in filenames:
-        head, tail = os.path.split(f)
+    annotations = []
+    aesa_annotation = namedtuple("Annotation", ["filename", "centerx", "centery", "category","type", "measurement"])
+    f = aesa_annotation(filename=os.path.join(image_dir, 'M56_10441297_12987348579669.jpg'), centerx=2918, centery=526, category='Cnidaria2', type='Length', measurement='40.70626')
+    annotations.append(f)
+    f = aesa_annotation(filename=os.path.join(image_dir, 'M56_10441297_12987348579669.jpg'), centerx=1759, centery=4337, category='Cnidaria2', type='Length', measurement='47.010646')
+    annotations.append(f)
+    f = aesa_annotation(filename=os.path.join(image_dir, 'M56_10441297_12987348579669.jpg'), centerx=1175, centery=10962, category='Cnidaria2', type='Length', measurement='53.36666')
+    annotations.append(f)
+    f = aesa_annotation(filename=os.path.join(image_dir, 'M56_10441297_12987348579669.jpg'), centerx=572, centery=11104, category='Cnidaria2', type='Length', measurement='31.400646')
+    annotations.append(f)
+    f = aesa_annotation(filename=os.path.join(image_dir, 'M56_10441297_12987348579669.jpg'), centerx=1689, centery=11992, category='Cnidaria2', type='Length', measurement='47.26521')
+    annotations.append(f)
+    f = aesa_annotation(filename=os.path.join(image_dir, 'M56_10441297_12987348579669.jpg'), centerx=1450, centery=13109, category='Cnidaria2', type='Length', measurement='19.64688')
+    annotations.append(f)
+    j = 0
+    for a in annotations:
+        head, tail = os.path.split(a.filename)
         stem = tail.split('.')[0]
 
         # get image height and width of raw tile
-        height, width = get_dims(f)
+        height, width = get_dims(a.filename)
 
-        # some tiles are lengthwise, and some are heightwise, so split along whatever is the largest dimension
-        if width > 10*height:
-            horiz_tiles = 20
-            vert_tiles = 1
+        # crop image into square tile centered on the annotation
+        if a.type is "Length":
+            crop_pixels = int(float(a.measurement))
         else:
-            horiz_tiles = 1
-            vert_tiles = 20
+            crop_pixels = 500
+        w = crop_pixels/2
+        os.system('convert %s -crop %dx%d+%d+%d +repage %st%06d.jpg' % (a.filename, crop_pixels, crop_pixels, a.centerx - w, a.centery - w, tile_dir, j))
 
-        # convert each tile into smaller overlapping image tiles
-        os.system('convert %s -crop %dx%d@ +repage +adjoin %st%%06d.jpg' % (f, horiz_tiles, vert_tiles, tile_dir))
+        out_stem = '%s_t%06d' % (stem, j)
 
-        # process each overlapping image
-        for i in range(0, horiz_tiles*vert_tiles - 1):
-            out_stem = '%s_t%06d' % (stem, i)
+        # create a mask for each croppped annotation using a simple threshold
+        mask = '%smask_f%06d.jpg' % (in_dir, 0)
+        os.system('convert %st%06d.jpg -threshold 10%% %s' % (tile_dir, j, mask))
 
-            # create a mask for each tile using a simple threshold
-            mask = '%smask_f%06d.jpg' % (in_dir, 0)
-            os.system('convert %st%06d.jpg -threshold 10%% %s' % (tile_dir, i, mask))
+        in_file = '%st%06d.jpg' % (tile_dir, j)
 
-            in_file = '%st%06d.jpg' % (tile_dir, i)
+        # get image height and width
+        height, width = get_dims(in_file)
 
-            # get image height and width
-            height, width = get_dims(in_file)
+        cmd = '%s %s %s %s --logverb=Info --mbari-rescale-saliency=%dx%d ' \
+              '--in=%s --out=raster:%s --mbari-save-output --mbari-save-events-xml=%s.xml ' \
+              '--mbari-save-event-summary=%s.txt --mbari-rescale-display=%dx%d ' \
+              '--mbari-mark-interesting=Outline --mbari-mask-path=%s ' \
+              '--foa-radius=10 --fovea-radius=10 ' \
+        % (bin, opts, display, saliency_output, width, height, in_file, out_stem, out_stem, out_stem,
+           width, height, mask)
 
-            if width >= 100 or height > 100:
-                display_width = 640
-                display_height = 480
-            else:
-                display_height = height
-                display_width = width
+        os.system(cmd)
+        os.system('convert %s-results%06d.pnm %s-results%06d.jpg' % (out_stem, 0, out_stem, j))
+        os.remove('%s-results%06d.pnm' % (out_stem, 0))
+        os.system('convert %s-T%06d.pnm %sf-saliency-map%06d.jpg' % ( out_stem, 0,out_stem, j))
+        os.remove('%s-T%06d.pnm' % (out_stem, 0))
+        j += 1
 
-            cmd = '%s %s %s %s --logverb=Info --mbari-se-size=20 --mbari-rescale-saliency=%dx%d ' \
-                  '--in=%s --out=raster:%s --mbari-save-output --mbari-save-events-xml=%s.xml ' \
-                  '--mbari-save-event-summary=%s.txt --mbari-rescale-display=%dx%d ' \
-                  '--mbari-mark-interesting=Outline --mbari-mask-path=%s ' \
-            % (bin, opts, display, saliency_output, width, height, in_file, out_stem, out_stem, out_stem,
-               display_width, display_height, mask)
+        tar_file = '%s.tar.gz' % out_stem
+        print 'Compressing processed results in %s to %s' % (os.getcwd(), tar_file)
+        tf = tarfile.open(tar_file, 'w:gz')
+        for name in sorted(glob.glob(os.path.join(os.getcwd(), out_stem + '*evt*.pnm'))):
+            head, tail = os.path.split(name)
+            stem = tail.split('.')[0]
+            out_file = os.path.join(os.getcwd(), '%s.jpg' % stem)
+            if os.system('convert %s %s' % (name, out_file)) == 0:
+                os.remove(name)
+                print 'adding ' + out_file
+                tf.add(out_file)
 
-            if width >= 1920 or height > 1920:
-                cmd = cmd + ' --mbari-segment-graph-parameters=0.95,500,250 '
+        tf.close()
 
-            os.system(cmd)
-            os.system('convert %s-results%06d.pnm %s%sf-results%06d.jpg' % (out_stem, 0, out_dir, out_stem, i))
-            os.system('convert %s-T%06d.pnm %s%sf-saliency-map%06d.jpg' % ( out_stem, 0, out_dir, out_stem, i))
-
+        for name in sorted(glob.glob(os.path.join(os.getcwd(), out_stem + '*'))):
+            n = os.path.basename(name)
+            out = os.path.join(out_dir, n)
+            print "Copying %s to directory %s" % (name, out)
+            copyfile(name, out)
+            os.remove(name)
+        print 'foobar'
     exit(-1)
-
-    # For testing
-    for f in filenames:
-        #os.system('convert %s %sf%06d.png' % (f, in_dir, index ))
-        index += 1
-
-    index -= 1
-    cmd = '%s %s %s %s --logverb=Info  --input-frames=0-%d@1 --in=raster:%sf#.png --out=raster:%sf  --mbari-save-output \
-    --mbari-save-events-xml=events.xml --mbari-save-event-summary=summary.txt --mbari-min-event-area=1000 --mbari-max-event-area=80000' % (bin, opts, display, saliency_output, index, in_dir, out_dir)
-    os.system(cmd)
