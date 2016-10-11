@@ -3,7 +3,7 @@ import os
 
 def get_dims(image):
     # get the height and width of a tile
-    cmd = 'identify %s' % (image)
+    cmd = 'identify "%s"' % (image)
     subproc = subprocess.Popen(cmd, env=os.environ, shell=True, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
                                stdout=subprocess.PIPE)
     out, err = subproc.communicate()
