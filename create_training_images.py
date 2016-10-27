@@ -24,46 +24,51 @@ import subprocess
 import process
 
 from collections import namedtuple
+import util
 logging.basicConfig(level=logging.DEBUG)
 
 if __name__ == '__main__':
 
-    csv_file = '/Volumes/ScratchDrive/AESA/M56_Annotations_v10.csv'
-    image_dir = "/Volumes/ScratchDrive/AESA/M56 tiles/"
-    out_dir = "/Volumes/ScratchDrive/AESA/M56 tiles/training_images/"
+    csv_file_raw = '/Volumes/ScratchDrive/AESA/M56_Annotations_v10.csv'
+    csv_file_appended = '/Volumes/ScratchDrive/AESA/M56_Annotations_v10_appended.csv'
+    image_dir = "/Volumes/ScratchDrive/AESA/M56 tiles/raw/"
+    out_dir = "/Volumes/ScratchDrive/AESA/M56 tiles/raw/cropped_images/"
 
-    aesa_annotation = namedtuple("Annotation", ["centerx", "centery", "category","mtype", "measurement", "index"])
+    aesa_annotation = namedtuple("Annotation", ["centerx", "centery", "category", "mtype", "measurement", "index", "image_file"])
 
+    util.ensure_dir(out_dir)
     try:
-        print 'Parsing ' + csv_file
-        df = pd.read_csv(csv_file, sep=',')
-        d = csv_file.split('.')
+        print 'Parsing ' + csv_file_raw
+        df = pd.read_csv(csv_file_raw, sep=',')
 
         print 'Getting images from ' + image_dir
         image_files = sorted(glob.glob(image_dir +'*.jpg'))
 
-        file_name = df['FileName']
-        center_x = df['CentreX']
-        center_y = df['CentreY']
-        category = df['Category']
-        mtype = df['Type']
-        measurement = df['Measurement']
-
         p = process.Process()
+        for index, row in df.iterrows():
 
-        for name in image_files:
-            print 'Searching for %s ...' % name
-            indexes = [i for i in range(len(file_name)) if str(file_name[i]) in name ]
+            try:
+                filename = os.path.join(image_dir, 'M56_10441297_%d.jpg' % int(row['FileName']))
 
-            annotations = []
-            filename = os.path.join(image_dir, name)
+                # get image height and width of raw tile
+                height, width = util.get_dims(filename)
+                head, tail = os.path.split(filename)
+                stem = tail.split('.')[0]
 
-            for i in indexes:
-                f = aesa_annotation(centerx=center_x[i], centery=center_y[i], category=category[i],
-                                    measurement=measurement[i], mtype=mtype[i], index=i)
-                annotations.append(f)
+                # create separate directory for each category
+                category = row['Category']
+                dir = ('%s%s/' % (out_dir, category.upper()))
+                util.ensure_dir(dir)
 
-            p.extract_annotations(filename, annotations, out_dir)
+                image_file = '%s%06d.jpg' % (dir, index)
+                a = aesa_annotation(centerx=row['CentreX'], centery=row['CentreY'], category=row['Category'],
+                                    measurement=row['Measurement'], mtype=row['Type'], index=index, image_file=image_file)
+
+                print 'Processing row %d filename %s annotation %s' % (index, filename, category)
+                p.extract_annotation(filename, a, dir)
+
+            except Exception as ex:
+                print ex
 
     except Exception as ex:
         print ex
