@@ -1,30 +1,84 @@
+#!/usr/bin/env python
+__author__    = 'Danelle Cline'
+__copyright__ = '2016'
+__license__   = 'GPL v3'
+__contact__   = 'dcline at mbari.org'
+__doc__ = '''
+
+Reads in wav training file and extracts raw and averaged features over the call
+@var __date__: Date of last svn commit
+@undocumented: __doc__ parser
+@status: production
+@license: GPL
+'''
+
+import numpy as np
+import fnmatch
 import os
 import util
-
-
+from sklearn import preprocessing
 class Process:
 
     def __init__(self):
         print 'init'
 
-    def extract_annotations(self, raw_file, annotations, out_dir):
-        # get image height and width of raw tile - only need to do this once for each image
-        height, width = util.get_dims(raw_file)
-        head, tail = os.path.split(raw_file)
-        stem = tail.split('.')[0]
+    def extract_annotation(self, raw_file, annotation, out_dir):
 
-        for a in annotations:
-            j = a.index
 
-            # crop image into square tile centered on the annotation and pad by 100 pixels
-            if a.mtype is "Length":
-                crop_pixels = int(float(a.measurement)) + 100
-            else:
-                crop_pixels = 500
-            w = crop_pixels / 2
+        # crop image into square tile centered on the annotation and pad by 50 pixels
+        if "Length" in annotation.mtype :
+            crop_pixels = int(float(annotation.measurement)) + 50
+        else:
+            crop_pixels = 500
+        w = crop_pixels / 2
 
-            image_dir = ('%s%s/' % (out_dir, a.category.upper()))
-            util.ensure_dir(image_dir)
-            out_file = '%s%s_%s_%06d' % (image_dir, stem, a.category, j)
+        if not os.path.exists(annotation.image_file):
             os.system('convert "%s" -crop %dx%d+%d+%d +repage -quality 100%% "%s"' % (
-                raw_file, crop_pixels, crop_pixels, a.centerx - w, a.centery - w, out_file))
+                raw_file, crop_pixels, crop_pixels, annotation.centerx - w, annotation.centery - w,annotation.image_file))
+            print 'Creating  %s ...' % annotation.image_file
+
+
+    '''def extract_features(self, wav_dir):
+        for root, dirnames, filenames in os.walk(wav_dir):
+            for filename in fnmatch.filter(filenames, '*.jpg'):
+
+                print 'Extracting features from %s' % filename
+                match = os.path.join(root, filename)
+
+                # pre-process with a log-polar transform
+
+
+
+                [Fs, x] = wav.read(match)
+                features = audioFeatureExtraction.stFeatureExtraction(x, Fs, 0.050*Fs, 0.025*Fs);
+
+                #########################
+                # save raw features
+                #########################
+                feature_dir = os.path.join(root, 'raw_features')
+                s = filename.split('.')
+
+                # create output directory if not already created
+                if not os.path.isdir(feature_dir):
+                    os.mkdir(feature_dir)
+
+                complete_path = os.path.join(feature_dir, s[0] +'.csv')
+                np.savetxt(complete_path, features, delimiter=",")
+
+
+                #########################
+                # save average features
+                #########################
+                feature_dir = os.path.join(root, 'avg_features')
+                s = filename.split('.')
+
+                # create output directory if not already created
+                if not os.path.isdir(feature_dir):
+                    os.mkdir(feature_dir)
+
+                avgfeatures = np.mean(features,axis = 1)
+                complete_path  = os.path.join(feature_dir, 'avg' + s[0] +'.csv')
+                np.savetxt(complete_path, avgfeatures, delimiter=",")'''
+
+
+

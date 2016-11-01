@@ -21,31 +21,28 @@ import numpy as np
 import glob
 from datetime import datetime
 import subprocess
+import process
 
 from collections import namedtuple
 import util
 import conf
-import process as p
-
 logging.basicConfig(level=logging.DEBUG)
 
 if __name__ == '__main__':
 
-    image_dir = "/Volumes/ScratchDrive/AESA/M56 tiles/raw/"
-    out_dir = "/Volumes/ScratchDrive/AESA/M56 tiles/raw/cropped_images/"
-
     aesa_annotation = namedtuple("Annotation", ["centerx", "centery", "category", "mtype", "measurement", "index", "image_file"])
 
-    util.ensure_dir(out_dir)
+    util.ensure_dir(conf.CROPPED_DIR)
+
     try:
         print 'Parsing ' + conf.ANNOTATIONS_FILE
         df = pd.read_csv(conf.ANNOTATIONS_FILE, sep=',')
 
-
+        p = process.Process()
         for index, row in df.iterrows():
 
             try:
-                filename = os.path.join(image_dir, 'M56_10441297_%d.jpg' % int(row['FileName']))
+                filename = os.path.join(conf.TILE_DIR, 'M56_10441297_%d.jpg' % int(row['FileName']))
 
                 # get image height and width of raw tile
                 height, width = util.get_dims(filename)
@@ -54,7 +51,7 @@ if __name__ == '__main__':
 
                 # create separate directory for each category
                 category = row['Category']
-                dir = ('%s%s/' % (out_dir, category.upper()))
+                dir = ('%s%s/' % (conf.CROPPED_DIR, category.upper()))
                 util.ensure_dir(dir)
 
                 image_file = '%s%06d.jpg' % (dir, index)
@@ -66,6 +63,7 @@ if __name__ == '__main__':
 
             except Exception as ex:
                 print ex
+                #TODO: log missing tiles
 
     except Exception as ex:
         print ex
