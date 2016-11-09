@@ -1,43 +1,27 @@
 # mbari-aesa project
 
-Code for processing AESA images in the cloud
+Code for processing AESA images using transfer learning and the Inception v3 model
 
 ## Prerequisites
 
-- Install [Docker](https://docs.docker.com/installation/)
-- Install [Compose](https://docs.docker.com/compose/install/)
-- Create Amazon account [Amazon](http://www.amazon.com/)
-- Create Docker ID [Docker](http://hub.docker.com/)
+- local copy of the images from the AESA project
+- [TensorFlow](https://www.tensorflow.org/)
+- Python version 2.7
+- [ImageMagick](http://www.imagemagick.org/)
 
-## Installation
 
-Link Docker account to Amazon Web Services [Docker cloud] (https://cloud.docker.com/onboarding/)
-[![ Docker cloud link ](https://github.com/danellecline/mbari-aesa/raw/master/img/docker-cloud-screenshot.png)]
+## Running
 
-Create Amazon bucket
-[![ Amazon bucket link ](https://github.com/danellecline/mbari-aesa/raw/master/img/aws-bucket.png)]
+Create virtual environment with correct dependencies
 
-Store bucket id, secret key, region and bucket name in .env file. See example in .env.example
-
-    $ cp .env.example .env
+    $ pip install virtualenv
+    $ cd your_project_folder
+    $ virtualenv venv-mbari-aesa
+    $ TODO: python dependencies here
     
-    and add your credentials
+First extract the training images from the raw tiles, e.g. 
 
-Cut and paste docker stack files docker-cloud.yml to Docker cloud account. TODO: how to automate this ?
+This will extract the images to a folder called "cropped_images" in your_project_folder
 
-[![ Cloud stack link ](https://github.com/danellecline/mbari-aesa/raw/master/img/docker-stack-screenshot.png)]
-
-## Local testing
-
-Start container
-
-    $ docker-compose up  
-    
-Start the management interface to see the message traffic
-    
-If running locally http://127.0.0.1:15672/
-    
-To make change to app code, only need to rebuild service and deploy that service, e.g. to just redeploy worker
-
-    $ docker-compose build worker
-    $ docker-compose up --no-deps -d worker
+    $ cd your_project_folder
+    $ python preprocess.py --in_dir /Volumes/ScratchDrive/AESA/M56 tiles/raw/ --annotation_file /Volumes/ScratchDrive/AESA/M56_Annotations_v10.csv
