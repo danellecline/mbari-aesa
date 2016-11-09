@@ -169,7 +169,7 @@ def create_image_lists(exclude_unknown, output_labels_file, image_dir, testing_p
     dir_name = os.path.basename(sub_dir)
     if dir_name == image_dir:
       continue
-    if exclude_unknown and "UNKNOWN" in dir_name :
+    if exclude_unknown and "UNKNOWN" is dir_name :
         print('------------>Skipping unknown<-----------')
         continue
     print("Looking for images in '" + dir_name + "'")
