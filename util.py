@@ -1,21 +1,393 @@
-import subprocess
+#!/usr/bin/env python
+__author__    = 'Danelle Cline'
+__copyright__ = '2016'
+__license__   = 'GPL v3'
+__contact__   = 'dcline at mbari.org'
+__doc__ = '''
+
+Utility class refactored out of the TensorFlow code:
+https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/image_retraining/retrain.py
+
+@var __date__: Date of last svn commit
+@undocumented: __doc__ parser
+@status: production
+@license: GPL
+'''
+
+import glob
+import hashlib
+import json
+import numpy as np
 import os
+import sys
+import struct
+import subprocess
+import tarfile
+import tensorflow as tf
+import re
+
+from tensorflow.python.platform import gfile
+from six.moves import urllib
+
+from tensorflow.python.util import compat
+MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 
 def get_dims(image):
-    # get the height and width of a tile
-    cmd = 'identify "%s"' % (image)
-    subproc = subprocess.Popen(cmd, env=os.environ, shell=True, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
-                               stdout=subprocess.PIPE)
-    out, err = subproc.communicate()
-    f = out.rstrip()
-    a = f.split(' ')[3]
-    size = a.split('+')[0]
-    width = int(size.split('x')[0])  # /4
-    height = int(size.split('x')[1])  # /4
-    return height, width
+  """
+  get the height and width of a tile
+  :param image: the image file
+  :return: height, width
+  """
+  cmd = 'identify "%s"' % (image)
+  subproc = subprocess.Popen(cmd, env=os.environ, shell=True, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
+                             stdout=subprocess.PIPE)
+  out, err = subproc.communicate()
+  f = out.rstrip()
+  a = f.split(' ')[3]
+  size = a.split('+')[0]
+  width = int(size.split('x')[0])
+  height = int(size.split('x')[1])
+  return height, width
 
 def ensure_dir(fname):
-    d = os.path.dirname(fname)
-    if not os.path.exists(d):
-        print "Making directory %s" % d
-        os.makedirs(d)
+  """
+  ensures a directory exists; creates on if it does not
+  :param fname:
+  :return:
+  """
+  d = os.path.dirname(fname)
+  if not os.path.exists(d):
+      print "Making directory %s" % d
+      os.makedirs(d)
+
+def maybe_download_and_extract(data_url, dest_dir='/tmp/imagenet'):
+  """
+  Download and extract model tar file.  If the pretrained model we're using doesn't already exist,
+   downloads it and unpacks it into a directory.
+  :param data_url:  url where tar.gz file exists
+  :param dest_dir:  destination directory untar to
+  :return:
+  """
+  if not os.path.exists(dest_dir):
+    os.makedirs(dest_dir)
+  filename = data_url.split('/')[-1]
+  filepath = os.path.join(dest_dir, filename)
+  if not os.path.exists(filepath):
+
+    def _progress(count, block_size, total_size):
+      sys.stdout.write('\r>> Downloading %s %.1f%%' %
+                       (filename,
+                        float(count * block_size) / float(total_size) * 100.0))
+      sys.stdout.flush()
+
+    filepath, _ = urllib.request.urlretrieve(data_url,
+                                             filepath,
+                                             _progress)
+    print()
+    statinfo = os.stat(filepath)
+    print('Successfully downloaded', filename, statinfo.st_size, 'bytes.')
+    tarfile.open(filepath, 'r:gz').extractall(dest_dir)
+
+
+def write_list_of_floats_to_file(tensor_size, list_of_floats, file_path):
+  """
+   Writes a given list of floats to a binary file.
+  :param tensor_size: size of the tensor of floats to write
+  :param list_of_floats: List of floats we want to write to a file.
+  :param file_path: Path to a file where list of floats will be stored.
+  :return:
+  """
+  s = struct.pack('d' * tensor_size, *list_of_floats)
+  with open(file_path, 'wb') as f:
+    f.write(s)
+
+
+def read_list_of_floats_from_file(tensor_size, file_path):
+  """
+   Reads list of floats from a given file.
+  :param tensor_size: size of the tensor of floats to write
+  :param file_path: Path to a file where list of floats was stored.
+  :return:Array of bottleneck values (list of floats).
+  """
+  with open(file_path, 'rb') as f:
+    s = struct.unpack('d' * tensor_size, f.read())
+    return list(s)
+
+def create_image_lists(exclude_unknown, output_labels_file, image_dir, testing_percentage, validation_percentage):
+  """Builds a list of training images from the file system.
+
+  Analyzes the sub folders in the image directory, splits them into stablestruct
+  training, testing, and validation sets, and returns a data structure
+  describing the lists of images for each label and their paths.
+
+  If the model_dir already has a label list in it, use that to define the label
+  ordering as the images are processed.
+
+  Args:
+    image_dir: String path to a folder containing subfolders of images.
+    output_labels_file: String path to a file where labels for this subfolder of image will be stored
+    testing_percentage: Integer percentage of the images to reserve for tests.
+    validation_percentage: Integer percentage of images reserved
+    for validation.
+
+  Returns:
+    A dictionary containing an entry for each label subfolder, with images
+    split into training, testing, and validation sets within each label.
+  """
+  if not gfile.Exists(image_dir):
+    print("Image directory '" + image_dir + "' not found.")
+    return None
+
+  # See if the model dir contains an existing labels list. This will only be
+  # the case if training using that model has occurred previously.
+  labels_list = None
+  if gfile.Exists(output_labels_file):
+    with open(output_labels_file, 'r') as lfile:
+      labels_string = lfile.read()
+      labels_list = json.loads(labels_string)
+      print("Found labels list: %s" % labels_list)
+
+  result = {}
+  if labels_list:
+    for l in labels_list:
+      result[l] = {}
+
+  sub_dirs = [x[0] for x in os.walk(image_dir)]
+  # The root directory comes first, so skip it.
+  is_root_dir = True
+  for sub_dir in sub_dirs:
+    if is_root_dir:
+      is_root_dir = False
+      continue
+    extensions = ['jpg', 'jpeg', 'JPG', 'JPEG']
+    file_list = []
+    dir_name = os.path.basename(sub_dir)
+    if dir_name == image_dir:
+      continue
+    if exclude_unknown and "UNKNOWN" in dir_name :
+        print('------------>Skipping unknown<-----------')
+        continue
+    print("Looking for images in '" + dir_name + "'")
+    for extension in extensions:
+      file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
+      file_list.extend(glob.glob(file_glob))
+    if not file_list:
+      print('No files found')
+      continue
+    if len(file_list) < 20:
+      print('WARNING: Folder {0} has less than 20 images, which may cause issues.'.format(dir_name))
+    elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
+      print('WARNING: Folder {0} has more than {1} images. Some images will '
+            'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
+    label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+    training_images = []
+    testing_images = []
+    validation_images = []
+    for file_name in file_list:
+      base_name = os.path.basename(file_name)
+      # We want to ignore anything after '_nohash_' in the file name.
+      hash_name = re.sub(r'_nohash_.*$', '', file_name)
+      # This looks a bit magical, but we need to decide whether this file
+      # should go into the training, testing, or validation sets, and we
+      # want to keep existing files in the same set even if more files
+      # are subsequently added.
+      # To do that, we need a stable way of deciding based on just the
+      # file name itself, so we do a hash of that and then use that to
+      # generate a probability value that we use to assign it.
+      hash_name_hashed = hashlib.sha1(compat.as_bytes(hash_name)).hexdigest()
+      percentage_hash = ((int(hash_name_hashed, 16) %
+                          (MAX_NUM_IMAGES_PER_CLASS + 1)) *
+                         (100.0 / MAX_NUM_IMAGES_PER_CLASS))
+      if percentage_hash < validation_percentage:
+        validation_images.append(base_name)
+      elif percentage_hash < (testing_percentage + validation_percentage):
+        testing_images.append(base_name)
+      else:
+        training_images.append(base_name)
+    result[label_name] = {
+        'dir': dir_name,
+        'training': training_images,
+        'testing': testing_images,
+        'validation': validation_images,
+    }
+  return result
+
+def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir, image_dir, jpeg_data_tensor, bottleneck_tensor):
+
+  bottlenecks = []
+  ground_truths = []
+  label_names = list(image_lists.keys())
+  for label_index in range(len(label_names)):
+    label_name = label_names[label_index]
+    for image_index in range(len(image_lists[label_name][category])):
+      bottleneck, image_path = get_or_create_bottleneck(
+          sess, image_lists, label_name, image_index, image_dir, category,
+          bottleneck_dir, jpeg_data_tensor, bottleneck_tensor)
+      ground_truth = np.zeros(len(label_names), dtype=np.float32)
+      ground_truth[label_index] = 1.0
+      ground_truths.append(ground_truth)
+      bottlenecks.append(bottleneck)
+
+  return bottlenecks, ground_truths
+
+def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
+                      jpeg_data_tensor, bottleneck_tensor):
+  """Ensures all the training, testing, and validation bottlenecks are cached.
+
+  Because we're likely to read the same image multiple times (if there are no
+  distortions applied during training) it can speed things up a lot if we
+  calculate the bottleneck layer values once for each image during
+  preprocessing, and then just read those cached values repeatedly during
+  training. Here we go through all the images we've found, calculate those
+  values, and save them off.
+
+  Args:
+    sess: The current active TensorFlow Session.
+    image_lists: Dictionary of training images for each label.
+    image_dir: Root folder string of the subfolders containing the training
+    images.
+    bottleneck_dir: Folder string holding cached files of bottleneck values.
+    jpeg_data_tensor: Input tensor for jpeg data from file.
+    bottleneck_tensor: The penultimate output layer of the graph.
+
+  Returns:
+    Nothing.
+  """
+  how_many_bottlenecks = 0
+  ensure_dir(bottleneck_dir)
+  for label_name, label_lists in image_lists.items():
+    for category in ['training', 'testing', 'validation']:
+      category_list = label_lists[category]
+      for index, unused_base_name in enumerate(category_list):
+        get_or_create_bottleneck(sess, image_lists, label_name, index,
+                                 image_dir, category, bottleneck_dir,
+                                 jpeg_data_tensor, bottleneck_tensor)
+        how_many_bottlenecks += 1
+        if how_many_bottlenecks % 2000 == 0:
+          print(str(how_many_bottlenecks) + ' bottleneck files created.')
+
+
+
+def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
+                             category, bottleneck_dir, jpeg_data_tensor,
+                             bottleneck_tensor):
+  """Retrieves or calculates bottleneck values for an image.
+
+  If a cached version of the bottleneck data exists on-disk, return that,
+  otherwise calculate the data and save it to disk for future use.
+
+  Args:
+    sess: The current active TensorFlow Session.
+    image_lists: Dictionary of training images for each label.
+    label_name: Label string we want to get an image for.
+    index: Integer offset of the image we want. This will be modulo-ed by the
+    available number of images for the label, so it can be arbitrarily large.
+    image_dir: Root folder string  of the subfolders containing the training
+    images.
+    category: Name string of which  set to pull images from: training, testing,
+    or validation.
+    bottleneck_dir: Folder string holding cached files of bottleneck values.
+    jpeg_data_tensor: The tensor to feed loaded jpeg data into.
+    bottleneck_tensor: The output tensor for the bottleneck values.
+
+  Returns:
+    Numpy array of values produced by the bottleneck layer for the image.
+    Original image path string
+  """
+  label_lists = image_lists[label_name]
+  sub_dir = label_lists['dir']
+  sub_dir_path = os.path.join(bottleneck_dir, sub_dir)
+  ensure_dir(sub_dir_path)
+  bottleneck_path = get_bottleneck_path(image_lists, label_name, index,
+                                        bottleneck_dir, category)
+  image_path = get_image_path(image_lists, label_name, index, image_dir,
+                                category)
+  if not os.path.exists(bottleneck_path):
+    print('Creating bottleneck at ' + bottleneck_path)
+    if not gfile.Exists(image_path):
+      tf.logging.fatal('File does not exist %s', image_path)
+    image_data = gfile.FastGFile(image_path, 'rb').read()
+    bottleneck_values = run_bottleneck_on_image(sess, image_data,
+                                                jpeg_data_tensor,
+                                                bottleneck_tensor)
+    bottleneck_string = ','.join(str(x) for x in bottleneck_values)
+    with open(bottleneck_path, 'w') as bottleneck_file:
+      bottleneck_file.write(bottleneck_string)
+
+  with open(bottleneck_path, 'r') as bottleneck_file:
+    bottleneck_string = bottleneck_file.read()
+
+  bottleneck_values = [float(x) for x in bottleneck_string.split(',')]
+  return bottleneck_values, image_path
+
+def run_bottleneck_on_image(sess, image_data, image_data_tensor,
+                            bottleneck_tensor):
+  """Runs inference on an image to extract the 'bottleneck' summary layer.
+
+  Args:
+    sess: Current active TensorFlow Session.
+    image_data: String of raw JPEG data.
+    image_data_tensor: Input data layer in the graph.
+    bottleneck_tensor: Layer before the final softmax.
+
+  Returns:
+    Numpy array of bottleneck values.
+  """
+  bottleneck_values = sess.run(
+      bottleneck_tensor,
+      {image_data_tensor: image_data})
+  bottleneck_values = np.squeeze(bottleneck_values)
+  return bottleneck_values
+
+def get_bottleneck_path(image_lists, label_name, index, bottleneck_dir,
+                        category):
+  """"Returns a path to a bottleneck file for a label at the given index.
+
+  Args:
+    image_lists: Dictionary of training images for each label.
+    label_name: Label string we want to get an image for.
+    index: Integer offset of the image we want. This will be moduloed by the
+    available number of images for the label, so it can be arbitrarily large.
+    bottleneck_dir: Folder string holding cached files of bottleneck values.
+    category: Name string of set to pull images from - training, testing, or
+    validation.
+
+  Returns:
+    File system path string to an image that meets the requested parameters.
+  """
+  return get_image_path(image_lists, label_name, index, bottleneck_dir,
+                        category) + '.txt'
+
+
+def get_image_path(image_lists, label_name, index, image_dir, category):
+  """"Returns a path to an image for a label at the given index.
+
+  Args:
+    image_lists: Dictionary of training images for each label.
+    label_name: Label string we want to get an image for.
+    index: Int offset of the image we want. This will be moduloed by the
+    available number of images for the label, so it can be arbitrarily large.
+    image_dir: Root folder string of the subfolders containing the training
+    images.
+    category: Name string of set to pull images from - training, testing, or
+    validation.
+
+  Returns:
+    File system path string to an image that meets the requested parameters.
+
+  """
+  if label_name not in image_lists:
+    tf.logging.fatal('Label does not exist %s.', label_name)
+  label_lists = image_lists[label_name]
+  if category not in label_lists:
+    tf.logging.fatal('Category does not exist %s.', category)
+  category_list = label_lists[category]
+  if not category_list:
+    tf.logging.fatal('Label %s has no images in the category %s.',
+                     label_name, category)
+  mod_index = index % len(category_list)
+  base_name = category_list[mod_index]
+  sub_dir = label_lists['dir']
+  full_path = os.path.join(image_dir, sub_dir, base_name)
+  return full_path
+
