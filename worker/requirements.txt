@@ -1,6 +1,0 @@
-argparse==1.4.0
-pika==0.9.14
-wsgiref==0.1.2
-boto3==1.4.0
-cython==0.24.1
-numpy=1.11.2
