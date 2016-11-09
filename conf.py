@@ -1,29 +1,12 @@
-import os
-#!/usr/bin/env python
-__author__    = 'Danelle Cline'
-__copyright__ = '2016'
-__license__   = 'GPL v3'
-__contact__   = 'dcline at mbari.org'
-__doc__ = '''
-
-Globals used in AESA project
-@var __date__: Date of last svn commit
-@undocumented: __doc__ parser
-@status: production
-@license: GPL
-'''
-
-global ANNOTATIONS_FILE, TILE_DIR, OUT_DIR
-
-ANNOTATIONS_FILE = 'M56_Annotations_v10.csv'
-#ANNOTATIONS_FILE = '/Users/dcline/Dropbox/GitHub/mbari-aesa/M56_Annotations_v10.csv'
-TILE_DIR = "/Volumes/ScratchDrive/AESA/M56 tiles/raw/"
-CROPPED_DIR = "/Volumes/ScratchDrive/AESA/M56 tiles/raw/cropped_images/"
-TEST_IDS = "data/test_ids.npy"
-ALL_IDS = "data/all_ids.npy"
-TRAIN_IDS = "data/train_ids.npy"
-TEST_DIR = "data/images_test/"
-TRAIN_DIR = "data/images_train/"
-TEST_HOG = "data/test_hog.csv"
-TRAIN_HOG = "data/train_hog.csv"
-ALL_HOG = "data/all_hog.csv"
+BOTTLENECK_TENSOR_NAME = 'pool_3/_reshape:0'
+BOTTLENECK_TENSOR_SIZE = 2048
+MODEL_INPUT_WIDTH = 299
+MODEL_INPUT_HEIGHT = 299
+MODEL_INPUT_DEPTH = 3
+JPEG_DATA_TENSOR_NAME = 'DecodeJpeg/contents:0'
+RESIZED_INPUT_TENSOR_NAME = 'ResizeBilinear:0'
+MODEL_GRAPH_NAME = 'classify_image_graph_def.pb'
+DATA_URL = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz'
+#DATA_URL = 'http://download.tensorflow.org/models/inception_v3_2016_08_28.tar.gz'
+#DATA_URL = 'http://download.tensorflow.org/models/resnet_v1_152_2016_08_28.tar.gz'
+#DATA_URL = 'http://download.tensorflow.org/models/inception_resnet_v2_2016_08_30.tar.gz'

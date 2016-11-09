@@ -30,6 +30,11 @@ from tensorflow.python.platform import gfile
 from six.moves import urllib
 
 from tensorflow.python.util import compat
+import random
+from tensorflow.python.framework import tensor_shape
+import conf
+from tensorflow.python.framework import ops
+
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 
 def get_dims(image):
@@ -391,3 +396,191 @@ def get_image_path(image_lists, label_name, index, image_dir, category):
   full_path = os.path.join(image_dir, sub_dir, base_name)
   return full_path
 
+def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
+                                  bottleneck_dir, image_dir, jpeg_data_tensor,
+                                  bottleneck_tensor):
+  """Retrieves bottleneck values for cached images.
+
+  If no distortions are being applied, this function can retrieve the cached
+  bottleneck values directly from disk for images. It picks a random set of
+  images from the specified category.
+
+  Args:
+    sess: Current TensorFlow Session.
+    image_lists: Dictionary of training images for each label.
+    how_many: The number of bottleneck values to return.
+    category: Name string of which set to pull from - training, testing, or
+    validation.
+    bottleneck_dir: Folder string holding cached files of bottleneck values.
+    image_dir: Root folder string of the subfolders containing the training
+    images.
+    jpeg_data_tensor: The layer to feed jpeg image data into.
+    bottleneck_tensor: The bottleneck output layer of the CNN graph.
+
+  Returns:
+    List of bottleneck arrays and their corresponding ground truths.
+  """
+  class_count = len(image_lists.keys())
+  bottlenecks = []
+  ground_truths = []
+  for unused_i in range(how_many):
+    label_index = random.randrange(class_count)
+    label_name = list(image_lists.keys())[label_index]
+    image_index = random.randrange(MAX_NUM_IMAGES_PER_CLASS + 1)
+    bottleneck = get_or_create_bottleneck(sess, image_lists, label_name,
+                                          image_index, image_dir, category,
+                                          bottleneck_dir, jpeg_data_tensor,
+                                          bottleneck_tensor)
+    ground_truth = np.zeros(class_count, dtype=np.float32)
+    ground_truth[label_index] = 1.0
+    bottlenecks.append(bottleneck)
+    ground_truths.append(ground_truth)
+  return bottlenecks, ground_truths
+
+
+def get_random_distorted_bottlenecks(
+    sess, image_lists, how_many, category, image_dir, input_jpeg_tensor,
+    distorted_image, resized_input_tensor, bottleneck_tensor):
+  """Retrieves bottleneck values for training images, after distortions.
+
+  If we're training with distortions like crops, scales, or flips, we have to
+  recalculate the full model for every image, and so we can't use cached
+  bottleneck values. Instead we find random images for the requested category,
+  run them through the distortion graph, and then the full graph to get the
+  bottleneck results for each.
+
+  Args:
+    sess: Current TensorFlow Session.
+    image_lists: Dictionary of training images for each label.
+    how_many: The integer number of bottleneck values to return.
+    category: Name string of which set of images to fetch - training, testing,
+    or validation.
+    image_dir: Root folder string of the subfolders containing the training
+    images.
+    input_jpeg_tensor: The input layer we feed the image data to.
+    distorted_image: The output node of the distortion graph.
+    resized_input_tensor: The input node of the recognition graph.
+    bottleneck_tensor: The bottleneck output layer of the CNN graph.
+
+  Returns:
+    List of bottleneck arrays and their corresponding ground truths.
+  """
+  class_count = len(image_lists.keys())
+  bottlenecks = []
+  ground_truths = []
+  for unused_i in range(how_many):
+    label_index = random.randrange(class_count)
+    label_name = list(image_lists.keys())[label_index]
+    image_index = random.randrange(MAX_NUM_IMAGES_PER_CLASS + 1)
+    image_path = get_image_path(image_lists, label_name, image_index, image_dir,
+                                category)
+    if not gfile.Exists(image_path):
+      tf.logging.fatal('File does not exist %s', image_path)
+    jpeg_data = gfile.FastGFile(image_path, 'rb').read()
+    # Note that we materialize the distorted_image_data as a numpy array before
+    # sending running inference on the image. This involves 2 memory copies and
+    # might be optimized in other implementations.
+    distorted_image_data = sess.run(distorted_image,
+                                    {input_jpeg_tensor: jpeg_data})
+    bottleneck = run_bottleneck_on_image(sess, distorted_image_data,
+                                         resized_input_tensor,
+                                         bottleneck_tensor)
+    ground_truth = np.zeros(class_count, dtype=np.float32)
+    ground_truth[label_index] = 1.0
+    bottlenecks.append(bottleneck)
+    ground_truths.append(ground_truth)
+  return bottlenecks, ground_truths
+
+
+def add_input_distortions(roate90, flip_left_right, random_crop, random_scale,
+                          random_brightness):
+  """Creates the operations to apply the specified distortions.
+
+  During training it can help to improve the results if we run the images
+  through simple distortions like crops, scales, and flips. These reflect the
+  kind of variations we expect in the real world, and so can help train the
+  model to cope with natural data more effectively. Here we take the supplied
+  parameters and construct a network of operations to apply them to an image.
+
+  Cropping
+  ~~~~~~~~
+
+  Cropping is done by placing a bounding box at a random position in the full
+  image. The cropping parameter controls the size of that box relative to the
+  input image. If it's zero, then the box is the same size as the input and no
+  cropping is performed. If the value is 50%, then the crop box will be half the
+  width and height of the input. In a diagram it looks like this:
+
+  <       width         >
+  +---------------------+
+  |                     |
+  |   width - crop%     |
+  |    <      >         |
+  |    +------+         |
+  |    |      |         |
+  |    |      |         |
+  |    |      |         |
+  |    +------+         |
+  |                     |
+  |                     |
+  +---------------------+
+
+  Scaling
+  ~~~~~~~
+
+  Scaling is a lot like cropping, except that the bounding box is always
+  centered and its size varies randomly within the given range. For example if
+  the scale percentage is zero, then the bounding box is the same size as the
+  input and no scaling is applied. If it's 50%, then the bounding box will be in
+  a random range between half the width and height and full size.
+
+  Args:
+    rotate90: Boolean whether to randomly rotate images in 45 degree increments.
+    flip_left_right: Boolean whether to randomly mirror images horizontally.
+    random_crop: Integer percentage setting the total margin used around the
+    crop box.
+    random_scale: Integer percentage of how much to vary the scale by.
+    random_brightness: Integer range to randomly multiply the pixel values by.
+    graph.
+
+  Returns:
+    The jpeg input layer and the distorted result tensor.
+  """
+
+  jpeg_data = tf.placeholder(tf.string, name='DistortJPGInput')
+  decoded_image = tf.image.decode_jpeg(jpeg_data, channels=conf.MODEL_INPUT_DEPTH)
+  decoded_image_as_float = tf.cast(decoded_image, dtype=tf.float32)
+  decoded_image_4d = tf.expand_dims(decoded_image_as_float, 0)
+  margin_scale = 1.0 + (random_crop / 100.0)
+  resize_scale = 1.0 + (random_scale / 100.0)
+  margin_scale_value = tf.constant(margin_scale)
+  resize_scale_value = tf.random_uniform(tensor_shape.scalar(),
+                                         minval=1.0,
+                                         maxval=resize_scale)
+  scale_value = tf.mul(margin_scale_value, resize_scale_value)
+  precrop_width = tf.mul(scale_value, conf.MODEL_INPUT_WIDTH)
+  precrop_height = tf.mul(scale_value, conf.MODEL_INPUT_HEIGHT)
+  precrop_shape = tf.pack([precrop_height, precrop_width])
+  precrop_shape_as_int = tf.cast(precrop_shape, dtype=tf.int32)
+  precropped_image = tf.image.resize_bilinear(decoded_image_4d,
+                                              precrop_shape_as_int)
+  precropped_image_3d = tf.squeeze(precropped_image, squeeze_dims=[0])
+  cropped_image = tf.random_crop(precropped_image_3d,
+                                 [conf.MODEL_INPUT_HEIGHT, conf.MODEL_INPUT_WIDTH,
+                                  conf.MODEL_INPUT_DEPTH])
+  if flip_left_right:
+    flipped_image = tf.image.random_flip_left_right(cropped_image)
+  elif roate90:      
+    image = ops.convert_to_tensor(cropped_image, name='image')
+    tf.image._Check3DImage(image, require_static=False) 
+    flipped_image = tf.image.rot90(image, k=1, name=None) 
+  else:
+    flipped_image = cropped_image
+  brightness_min = 1.0 - (random_brightness / 100.0)
+  brightness_max = 1.0 + (random_brightness / 100.0)
+  brightness_value = tf.random_uniform(tensor_shape.scalar(),
+                                       minval=brightness_min,
+                                       maxval=brightness_max)
+  brightened_image = tf.mul(flipped_image, brightness_value)
+  distort_result = tf.expand_dims(brightened_image, 0, name='DistortResult')
+  return jpeg_data, distort_result
