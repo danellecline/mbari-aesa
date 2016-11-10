@@ -32,6 +32,7 @@ import util
 import time
 import pandas as pd
 import transfer_model as transfer_model
+import transfer_model_multilabel as transfer_model_multilabel
 import tensorflow as tf
 from tensorflow.python.platform import gfile
 from scipy.misc import imresize
@@ -52,7 +53,7 @@ def process_command_line():
     parser.add_argument('--image_dir', type=str, required=True,  help="Path to folders of labeled images.")
     # where the model information lives
     parser.add_argument('--model_dir', type=str, default=os.path.join( "/tmp/tfmodels/img_classify", str(int(time.time()))), help='Directory for storing model info')
- 
+
     # Details of the training configuration.
     parser.add_argument('--num_steps', type=int, default=15000, help="How many training steps to run before ending.")
     parser.add_argument('--learning_rate', type=float, default=0.01, help="How large a learning rate to use when training.")
@@ -86,6 +87,7 @@ def process_command_line():
     parser.add_argument('--exclude_unknown', dest='exclude_unknown', action='store_true', help="Exclude classes that include the unknown category")
     parser.add_argument('--metrics_plot_name', type=str, default='metrics_plot.png', help="""The name of the metric plot""")
     parser.add_argument('--annotation_file', type=str, help="Path to annotation file.")
+    parser.add_argument('--multilabel', action='store_true', default=False, help="Whether to learning a multilabel both by Category and Group)")
 
     args = parser.parse_args()
     return args
@@ -214,6 +216,8 @@ def add_images(sess, paths, model_dir):
     coord.join(threads)
 
 if __name__ == '__main__':
+
+    df = pd.DataFrame()
     args = process_command_line()
 
     if args.annotation_file:
@@ -222,8 +226,11 @@ if __name__ == '__main__':
         print("Image directory '" + args.annotation_file + "' not found.")
         exit(-1)
       else:
-        annotations_df = pd.read_csv(args.annotation_file, sep=',')
+        df = pd.read_csv(args.annotation_file, sep=',')
 
+    if args.multilabel and not args.annotation_file:
+      print("Require the annotation file to determine the multiple labels")
+      exit(-1)
 
     print("Using model directory {0} and model from {1}".format(args.model_dir, conf.DATA_URL))
     # Set up the pre-trained graph.
@@ -234,12 +241,14 @@ if __name__ == '__main__':
     labels_list = None
     output_labels_file = os.path.join(args.model_dir, "output_labels.json")
     output_labels_file_lt20 = os.path.join(args.model_dir, "output_labels_lt20.json")
-    util.ensure_dir(output_labels_file_lt20)
+    d = os.path.dirname(output_labels_file_lt20)
+    util.ensure_dir(d)
 
     # Look at the folder structure, and create lists of all the images.
     image_lists = util.create_image_lists(args.exclude_unknown, output_labels_file, output_labels_file_lt20,
-        args.image_dir, args.testing_percentage,
-        args.validation_percentage)
+                                          args.image_dir, args.testing_percentage,
+                                          args.validation_percentage)
+
     class_count = len(image_lists.keys())
     if class_count == 0:
       print('No valid folders of images found at ' + args.image_dir)
@@ -265,36 +274,55 @@ if __name__ == '__main__':
       # cached them on disk.
       util.cache_bottlenecks(sess, image_lists, args.image_dir, args.bottleneck_dir,
                         jpeg_data_tensor, bottleneck_tensor)
-    # Define the custom estimator
-    model_fn = transfer_model.make_model_fn(class_count, args.final_tensor_name, args.learning_rate)
-    model_params = {}
-    classifier = tf.contrib.learn.Estimator(
-        model_fn=model_fn, params=model_params, model_dir=args.model_dir)
 
-    train_bottlenecks, train_ground_truth = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
+    if args.multilabel:
+      train_bottlenecks, train_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel(
+                                                                          sess, df,
+                                                                          image_lists, 'training',
+                                                                          args.bottleneck_dir, args.image_dir,
+                                                                          jpeg_data_tensor, bottleneck_tensor)
+    else:
+      train_bottlenecks, train_ground_truth = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
                                                                             args.bottleneck_dir, args.image_dir,
                                                                             jpeg_data_tensor, bottleneck_tensor)
     train_bottlenecks = np.array(train_bottlenecks)
     train_ground_truth = np.array(train_ground_truth)
 
-    # then run the training
+    # Define the custom estimator
+    if args.multilabel:
+      class_count = len(all_label_names)
+      model_fn = transfer_model_multilabel.make_model_fn(class_count, args.final_tensor_name, args.learning_rate)
+    else:
+      model_fn = transfer_model.make_model_fn(class_count, args.final_tensor_name, args.learning_rate)
+
+    model_params = {}
+    classifier = tf.contrib.learn.Estimator(model_fn=model_fn, params=model_params, model_dir=args.model_dir)
+
+    # run the training
     print("Starting training for %s steps max" % args.num_steps)
     classifier.fit(
         x=train_bottlenecks.astype(np.float32),
         y=train_ground_truth, batch_size=10,
         max_steps=args.num_steps)
 
-    # We've completed our training, so run a test evaluation on
-    # some new images we haven't used before.
-    test_bottlenecks, test_ground_truth = util.get_all_cached_bottlenecks(
-        sess, image_lists, 'testing',
-        args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
-        bottleneck_tensor)
+    # We've completed our training, so run a test evaluation on some new images we haven't used before.
+    if args.multilabel:
+      test_bottlenecks, test_ground_truth, _ = util.get_all_cached_bottlenecks_multilabel(
+                                                            sess, df, image_lists, 'testing',
+                                                            args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
+                                                            bottleneck_tensor)
+    else:
+      test_bottlenecks, test_ground_truth = util.get_all_cached_bottlenecks(
+                                                            sess, image_lists, 'testing',
+                                                            args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
+                                                            bottleneck_tensor)
     test_bottlenecks = np.array(test_bottlenecks)
     test_ground_truth = np.array(test_ground_truth)
     print("evaluating....")
-    classifier.evaluate(
-        test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model.METRICS)
+    if args.multilabel:
+      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model_multilabel.METRICS)
+    else:
+      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model.METRICS)
 
     # write the output labels file if it doesn't already exist
     if gfile.Exists(output_labels_file):
@@ -308,11 +336,12 @@ if __name__ == '__main__':
     '''for name in image_lists.iterkeys():
         image_dir = image_lists[name]['dir']
         paths = [ '%s/%s/%s'%(args.image_dir, image_dir, filename) for filename in image_lists[name]['testing'] ]'''
-    util_plot.plot_confusion_matrix(args, classifier, test_bottlenecks.astype(np.float32), test_ground_truth,
+    '''util_plot.plot_confusion_matrix(args, classifier, test_bottlenecks.astype(np.float32), test_ground_truth,
                                     output_labels_file, output_labels_file_lt20)
 
     for name in image_lists.iterkeys():
         dir = image_lists[name]['dir']
         paths = [ '%s/%s/%s'%(args.image_dir, dir, filename) for filename in image_lists[name]['testing'] ]
 
-    add_images(sess, paths, args.model_dir)
+    add_images(sess, paths, args.model_dir)'''
+    print("Done !")

@@ -23,7 +23,7 @@ import os
 import math
 import numpy as np
 import tensorflow as tf
-import seaborn as sns
+#import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
@@ -103,7 +103,7 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
       num_plots = 1
 
     fig = plt.figure(figsize=(11, 17));
-    sns.set()
+    #sns.set()
     writer = tf.train.SummaryWriter(args.model_dir)
     gs = gridspec.GridSpec(num_plots, 1)
     # compute Precision-Recall per each class and plot curve per each class
@@ -165,7 +165,7 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
     fig, ax = plt.subplots(figsize=(11, 11));
     ax.set_title('Confusion Matrix ' + args.model_dir)
 
-    cmap = sns.diverging_palette(220, 10, as_cmap=True)
+    '''cmap = sns.diverging_palette(220, 10, as_cmap=True)
     # compute confusion matrix and color with heatmap
     # annotate with nubers if less than 10 labels, otherwise too cluttered
     annot = (len(labels_list) < 10)
@@ -183,6 +183,6 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
     head, tail = os.path.split(args.model_dir)
     summary_op3 = tf.image_summary('plt_confusion_matrix', image3)
     summary3 = sess.run(summary_op3)
-    writer.add_summary(summary3)
+    writer.add_summary(summary3)'''
     writer.close()
     print('Done')

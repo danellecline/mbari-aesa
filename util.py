@@ -54,16 +54,14 @@ def get_dims(image):
   height = int(size.split('x')[1])
   return height, width
 
-def ensure_dir(fname):
+def ensure_dir(d):
   """
-  ensures a directory exists; creates on if it does not
+  ensures a directory exists; creates it if it does not
   :param fname:
   :return:
   """
-  d = os.path.dirname(fname)
   if not os.path.exists(d):
-      print "Making directory %s" % d
-      os.makedirs(d)
+    os.makedirs(d)
 
 def maybe_download_and_extract(data_url, dest_dir='/tmp/imagenet'):
   """
@@ -181,7 +179,7 @@ def create_image_lists(exclude_unknown, output_labels_file, output_labels_file_l
     if not file_list:
       print('No files found')
       continue
-    if len(file_list) < 2000:
+    if len(file_list) < 20:
       print('WARNING: Folder {0} has less than 20 images, which may cause issues.'.format(dir_name))
       labels_lt20.append(dir_name.lower())
     elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
@@ -225,7 +223,46 @@ def create_image_lists(exclude_unknown, output_labels_file, output_labels_file_l
 
   return result
 
-def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir, image_dir, jpeg_data_tensor, bottleneck_tensor):
+def get_all_cached_bottlenecks_multilabel(sess, df, image_lists, category, bottleneck_dir,
+                               image_dir, jpeg_data_tensor, bottleneck_tensor):
+
+  bottlenecks = []
+  ground_truths = []
+
+  label_names = list(image_lists.keys())
+
+  # get a list of all labels by group and category(class); change cases to make them unique
+  class_unique = list(df.Category.unique())
+  classes = [name.upper() for name in class_unique]
+  groups_unique = list(df.group.unique())
+  groups = [name.lower() for name in groups_unique]
+  all_label_names = classes + groups
+
+  # go through the images in whatever order they are sorted - this might be by group or category(class)
+  for label_index in range(len(label_names)):
+    label_name = label_names[label_index]
+
+    for image_index in range(len(image_lists[label_name][category])):
+
+      bottleneck, image_path = get_or_create_bottleneck(
+          sess, image_lists, label_name, image_index, image_dir, category,
+          bottleneck_dir, jpeg_data_tensor, bottleneck_tensor)
+
+      ground_truth = np.zeros(len(all_label_names), dtype=np.float32)
+      filename = os.path.split(image_path)[1]
+      id = int(filename.split('.')[0])
+      cls = df.iloc[id].Category
+      group = df.iloc[id].group
+      ground_truth[all_label_names.index(cls.upper())] = 1.0
+      ground_truth[all_label_names.index(cls.upper())] = 1.0
+      ground_truths.append(ground_truth)
+      bottlenecks.append(bottleneck)
+
+  return bottlenecks, ground_truths, all_label_names
+
+
+def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir,
+                               image_dir, jpeg_data_tensor, bottleneck_tensor):
 
   bottlenecks = []
   ground_truths = []
