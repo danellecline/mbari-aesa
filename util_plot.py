@@ -148,41 +148,41 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
          label='category {0}'
                ''.format(name));
 
-    plt.savefig(os.path.join(args.model_dir, 'm_roc_' + args.metrics_plot_name), format='png', dpi=120);
-    buf2 = io.BytesIO()
-    plt.savefig(buf2, format='png', dpi=120);
-    buf2.seek(0)
-    #plt.show()
-    # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an  image to tensorboard
-    image2 = tf.image.decode_png(buf2.getvalue(), channels=4)
-    image2 = tf.expand_dims(image2, 0)
-    head, tail = os.path.split(args.model_dir)
-    tag = '{0}/m_roc_{1}'.format(tail,args.metrics_plot_name)
-    summary_op = tf.image_summary(tag, image2)
-    summary = sess.run(summary_op)
-    writer.add_summary(summary)
+      plt.savefig(os.path.join(args.model_dir, 'm_roc_' + args.metrics_plot_name), format='png', dpi=120);
+      buf2 = io.BytesIO()
+      plt.savefig(buf2, format='png', dpi=120);
+      buf2.seek(0)
+      #plt.show()
+      # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an  image to tensorboard
+      image2 = tf.image.decode_png(buf2.getvalue(), channels=4)
+      image2 = tf.expand_dims(image2, 0)
+      head, tail = os.path.split(args.model_dir)
+      tag = '{0}/m_roc_{1}'.format(tail,args.metrics_plot_name)
+      summary_op = tf.image_summary(tag, image2)
+      summary = sess.run(summary_op)
+      writer.add_summary(summary)
 
-    plt.close('all')
+      plt.close('all')
 
-    fig, ax = plt.subplots(figsize=(11, 11));
-    ax.set_title('Confusion Matrix ' + args.model_dir)
+      fig, ax = plt.subplots(figsize=(11, 11));
+      ax.set_title('Confusion Matrix ' + args.model_dir)
 
-    cmap = sns.diverging_palette(220, 10, as_cmap=True)
-    # compute confusion matrix and color with heatmap
-    sns.heatmap(matrix, cmap=cmap, vmax=30, annot=False,
-          square=True, xticklabels=labels_list, yticklabels=labels_list,
-          linewidths=.5, cbar_kws={"shrink": .5}, ax=ax)
-    plt.savefig(os.path.join(args.model_dir, 'm_cm_' + args.metrics_plot_name), format='png', dpi=120);
+      cmap = sns.diverging_palette(220, 10, as_cmap=True)
+      # compute confusion matrix and color with heatmap
+      sns.heatmap(matrix, cmap=cmap, vmax=30, annot=False,
+            square=True, xticklabels=labels_list, yticklabels=labels_list,
+            linewidths=.5, cbar_kws={"shrink": .5}, ax=ax)
+      plt.savefig(os.path.join(args.model_dir, 'm_cm_' + args.metrics_plot_name), format='png', dpi=120);
 
-    # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an  image to tensorboard
-    buf3 = io.BytesIO()
-    plt.savefig(buf3, format='png', dpi=120);
-    buf3.seek(0)
-    image3 = tf.image.decode_png(buf3.getvalue(), channels=4)
-    image3 = tf.expand_dims(image3, 0)
-    head, tail = os.path.split(args.model_dir)
-    tag = '{0}/m_cm_{1}'.format(tail, args.metrics_plot_name)
-    summary_op3 = tf.image_summary(tag, image3)
-    summary3 = sess.run(summary_op3)
-    writer.add_summary(summary3)
-    writer.close()
+      # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an  image to tensorboard
+      buf3 = io.BytesIO()
+      plt.savefig(buf3, format='png', dpi=120);
+      buf3.seek(0)
+      image3 = tf.image.decode_png(buf3.getvalue(), channels=4)
+      image3 = tf.expand_dims(image3, 0)
+      head, tail = os.path.split(args.model_dir)
+      tag = '{0}/m_cm_{1}'.format(tail, args.metrics_plot_name)
+      summary_op3 = tf.image_summary(tag, image3)
+      summary3 = sess.run(summary_op3)
+      writer.add_summary(summary3)
+      writer.close()
