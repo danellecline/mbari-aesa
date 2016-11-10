@@ -30,6 +30,7 @@ import util_plot
 import numpy as np
 import util
 import time
+import pandas as pd
 import transfer_model as transfer_model
 import tensorflow as tf
 from tensorflow.python.platform import gfile
@@ -84,6 +85,7 @@ def process_command_line():
     # Custom selections AESA training set
     parser.add_argument('--exclude_unknown', dest='exclude_unknown', action='store_true', help="Exclude classes that include the unknown category")
     parser.add_argument('--metrics_plot_name', type=str, default='metrics_plot.png', help="""The name of the metric plot""")
+    parser.add_argument('--annotation_file', type=str, help="Path to annotation file.")
 
     args = parser.parse_args()
     return args
@@ -214,6 +216,15 @@ def add_images(sess, paths, model_dir):
 if __name__ == '__main__':
     args = process_command_line()
 
+    if args.annotation_file:
+      print("Using annotation file " + args.annotation_file)
+      if not gfile.Exists(args.annotation_file):
+        print("Image directory '" + args.annotation_file + "' not found.")
+        exit(-1)
+      else:
+        annotations_df = pd.read_csv(args.annotation_file, sep=',')
+
+
     print("Using model directory {0} and model from {1}".format(args.model_dir, conf.DATA_URL))
     # Set up the pre-trained graph.
     util.maybe_download_and_extract(data_url=conf.DATA_URL, dest_dir=args.incp_model_dir)
@@ -223,7 +234,7 @@ if __name__ == '__main__':
     labels_list = None
     output_labels_file = os.path.join(args.model_dir, "output_labels.json")
     output_labels_file_lt20 = os.path.join(args.model_dir, "output_labels_lt20.json")
-    util.ensure_dir(args.model_dir)
+    util.ensure_dir(output_labels_file_lt20)
 
     # Look at the folder structure, and create lists of all the images.
     image_lists = util.create_image_lists(args.exclude_unknown, output_labels_file, output_labels_file_lt20,
@@ -270,7 +281,7 @@ if __name__ == '__main__':
     print("Starting training for %s steps max" % args.num_steps)
     classifier.fit(
         x=train_bottlenecks.astype(np.float32),
-        y=train_ground_truth, batch_size=50,
+        y=train_ground_truth, batch_size=10,
         max_steps=args.num_steps)
 
     # We've completed our training, so run a test evaluation on
