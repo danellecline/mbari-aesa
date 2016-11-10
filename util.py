@@ -118,7 +118,7 @@ def read_list_of_floats_from_file(tensor_size, file_path):
     s = struct.unpack('d' * tensor_size, f.read())
     return list(s)
 
-def create_image_lists(exclude_unknown, output_labels_file, image_dir, testing_percentage, validation_percentage):
+def create_image_lists(exclude_unknown, output_labels_file, output_labels_file_lt20, image_dir, testing_percentage, validation_percentage):
   """Builds a list of training images from the file system.
 
   Analyzes the sub folders in the image directory, splits them into stablestruct
@@ -131,6 +131,7 @@ def create_image_lists(exclude_unknown, output_labels_file, image_dir, testing_p
   Args:
     image_dir: String path to a folder containing subfolders of images.
     output_labels_file: String path to a file where labels for this subfolder of image will be stored
+    output_labels_lt20: String path to a file where labels with less than 20 images will be stored
     testing_percentage: Integer percentage of the images to reserve for tests.
     validation_percentage: Integer percentage of images reserved
     for validation.
@@ -152,6 +153,7 @@ def create_image_lists(exclude_unknown, output_labels_file, image_dir, testing_p
       labels_list = json.loads(labels_string)
       print("Found labels list: %s" % labels_list)
 
+  labels_lt20 = []
   result = {}
   if labels_list:
     for l in labels_list:
@@ -179,8 +181,9 @@ def create_image_lists(exclude_unknown, output_labels_file, image_dir, testing_p
     if not file_list:
       print('No files found')
       continue
-    if len(file_list) < 20:
+    if len(file_list) < 2000:
       print('WARNING: Folder {0} has less than 20 images, which may cause issues.'.format(dir_name))
+      labels_lt20.append(dir_name.lower())
     elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
       print('WARNING: Folder {0} has more than {1} images. Some images will '
             'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
@@ -215,6 +218,11 @@ def create_image_lists(exclude_unknown, output_labels_file, image_dir, testing_p
         'testing': testing_images,
         'validation': validation_images,
     }
+
+  labels = json.dumps(list(labels_lt20))
+  with gfile.FastGFile(output_labels_file_lt20, 'w') as f:
+    f.write(labels)
+
   return result
 
 def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir, image_dir, jpeg_data_tensor, bottleneck_tensor):

@@ -8,7 +8,7 @@ __email__ = "dcline at mbari.org"
 __status__ = "Development"
 __doc__ = '''
 
-This script runs learning algorithms on the AESA training data set
+This script runs transfer learning on the AESA training data set using the inception v3 model trained on ImageNet
 
 Based on the TensorFlow code:
 https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/image_retraining/retrain.py
@@ -44,7 +44,7 @@ def process_command_line():
                               " --bottleneck_dir /tmp/data/images_by_group/cropped_images/bottleneck" \
                               " --model_dir /tmp/model_output/default"
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
-                                     description='Process LTSA data for last 3 days',
+                                     description='Run transfer learning on folder of images organized by label ',
                                      epilog=examples)
 
     # Input and output file flags.
@@ -222,9 +222,11 @@ if __name__ == '__main__':
 
     labels_list = None
     output_labels_file = os.path.join(args.model_dir, "output_labels.json")
+    output_labels_file_lt20 = os.path.join(args.model_dir, "output_labels_lt20.json")
+    util.ensure_dir(args.model_dir)
 
     # Look at the folder structure, and create lists of all the images.
-    image_lists = util.create_image_lists(args.exclude_unknown, output_labels_file,
+    image_lists = util.create_image_lists(args.exclude_unknown, output_labels_file, output_labels_file_lt20,
         args.image_dir, args.testing_percentage,
         args.validation_percentage)
     class_count = len(image_lists.keys())
@@ -258,7 +260,9 @@ if __name__ == '__main__':
     classifier = tf.contrib.learn.Estimator(
         model_fn=model_fn, params=model_params, model_dir=args.model_dir)
 
-    train_bottlenecks, train_ground_truth = util.get_all_cached_bottlenecks(sess, image_lists, 'training', args.bottleneck_dir, args.image_dir, jpeg_data_tensor, bottleneck_tensor)
+    train_bottlenecks, train_ground_truth = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
+                                                                            args.bottleneck_dir, args.image_dir,
+                                                                            jpeg_data_tensor, bottleneck_tensor)
     train_bottlenecks = np.array(train_bottlenecks)
     train_ground_truth = np.array(train_ground_truth)
 
@@ -293,7 +297,8 @@ if __name__ == '__main__':
     '''for name in image_lists.iterkeys():
         image_dir = image_lists[name]['dir']
         paths = [ '%s/%s/%s'%(args.image_dir, image_dir, filename) for filename in image_lists[name]['testing'] ]'''
-    util_plot.plot_confusion_matrix(args, classifier, test_bottlenecks.astype(np.float32), test_ground_truth, output_labels_file)
+    util_plot.plot_confusion_matrix(args, classifier, test_bottlenecks.astype(np.float32), test_ground_truth,
+                                    output_labels_file, output_labels_file_lt20)
 
     for name in image_lists.iterkeys():
         dir = image_lists[name]['dir']
