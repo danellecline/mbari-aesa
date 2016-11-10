@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 from matplotlib.lines import Line2D
-from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import precision_recall_curve, roc_curve, auc
 from tensorflow.python.platform import gfile
 
 linestyles = ['-', '--', ':']
@@ -72,8 +72,6 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
   with sess.as_default():
     results_y_test = {}
     results_y_score = {}
-    precision = {}
-    recall =  {}
     average_precision =  {}
     matrix = np.zeros([len(labels_list),len(labels_list)],int)
     predictions = classifier.predict(x=bottlenecks, as_iterable=True)
@@ -82,9 +80,6 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
     for key in labels_list:
       results_y_test[key] = []
       results_y_score[key] = []
-      precision[key] = []
-      recall[key] = []
-      average_precision[key] = []
 
     for _, p in enumerate(predictions):
       print("---------")
@@ -92,12 +87,11 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
       actual = int(np.argmax(test_ground_truth[j]))
       key = labels_list[actual]
       if actual == predicted:
-        results_y_test[key].append(0)
-      else:
         results_y_test[key].append(1)
-      results_y_score[key].append(p['class_vector'][actual])
+      else:
+        results_y_test[key].append(0)
+      results_y_score[key].append(p['class_vector'][predicted])
 
-      #print("%s is predicted as %s actual class %s vector %s " % (test_paths[j], labels_list[predicted], labels_list[actual], p['class_vector']))
       print("%i is predicted as %s actual class %s vector %s " % (j, labels_list[predicted], labels_list[actual], p['class_vector']))
       matrix[predicted, actual] += 1
       j += 1
@@ -128,14 +122,14 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
         marker_size = 5
 
       if (count + max_per_plot) % max_per_plot  == 1:
-        print('Adding subplot %d numplots %d %d' % (a, num_plots, len(labels_list)))
+        print('Adding subplot %d numplots %d number of labels %d' % (a, num_plots, len(labels_list)))
         ax = fig.add_subplot(gs[a])
-        ax.set_title('Precision/Recall Curves ' + args.model_dir)
-        ax.set_xlim([0, 1.05])
+        ax.set_title('ROC Curves ' + args.model_dir)
+        ax.set_xlim([0, 1.0])
         ax.set_ylim([0, 1.05])
+        ax.set_xlabel('False Positive Rate')
+        ax.set_ylabel('True Positive Rate')
         a += 1
-      if count % max_per_plot  == 0 or count == len(labels_list):
-        ax.legend(loc="lower left")
 
       if not results_y_test[name] and not results_y_score[name]:
         print('===========> Warning - no values assigned to %s <=======' % name)
@@ -143,46 +137,52 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
             verticalalignment='bottom', fontsize=10)
         j += .02
       else:
-        precision[name], recall[name], _ = precision_recall_curve(results_y_test[name], results_y_score[name])
-        ax.plot(recall[name], precision[name], linestyle=style,  marker=marker, color=color, markersize=marker_size,
-         label='category {0}'
-               ''.format(name));
+        print('===========> Adding to plot %s <=======' % name)
+        # compute ROC curve and ROC area for this class and plot
+        fpr, tpr, _ = roc_curve(results_y_test[name], results_y_score[name])
+        roc_auc = auc(fpr, tpr)
+        ax.plot(fpr, tpr, linestyle=style,  marker=marker, color=color, markersize=marker_size,
+         label='category {0} (area = {1:0.2f})'.format(name, roc_auc));
 
-      plt.savefig(os.path.join(args.model_dir, 'm_roc_' + args.metrics_plot_name), format='png', dpi=120);
-      buf2 = io.BytesIO()
-      plt.savefig(buf2, format='png', dpi=120);
-      buf2.seek(0)
-      #plt.show()
-      # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an  image to tensorboard
-      image2 = tf.image.decode_png(buf2.getvalue(), channels=4)
-      image2 = tf.expand_dims(image2, 0)
-      head, tail = os.path.split(args.model_dir)
-      tag = '{0}/m_roc_{1}'.format(tail,args.metrics_plot_name)
-      summary_op = tf.image_summary(tag, image2)
-      summary = sess.run(summary_op)
-      writer.add_summary(summary)
+      if count % max_per_plot  == 0 or count == len(labels_list):
+        ax.legend(loc="lower left")
 
-      plt.close('all')
+    plt.savefig(os.path.join(args.model_dir, 'm_roc_' + args.metrics_plot_name), format='png', dpi=120);
+    buf2 = io.BytesIO()
+    plt.savefig(buf2, format='png', dpi=120);
+    buf2.seek(0)
+    #plt.show()
+    # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an  image to tensorboard
+    image2 = tf.image.decode_png(buf2.getvalue(), channels=4)
+    image2 = tf.expand_dims(image2, 0)
+    head, tail = os.path.split(args.model_dir)
+    summary_op = tf.image_summary('plt_roc', image2)
+    summary = sess.run(summary_op)
+    writer.add_summary(summary)
 
-      fig, ax = plt.subplots(figsize=(11, 11));
-      ax.set_title('Confusion Matrix ' + args.model_dir)
+    plt.close('all')
 
-      cmap = sns.diverging_palette(220, 10, as_cmap=True)
-      # compute confusion matrix and color with heatmap
-      sns.heatmap(matrix, cmap=cmap, vmax=30, annot=False,
-            square=True, xticklabels=labels_list, yticklabels=labels_list,
-            linewidths=.5, cbar_kws={"shrink": .5}, ax=ax)
-      plt.savefig(os.path.join(args.model_dir, 'm_cm_' + args.metrics_plot_name), format='png', dpi=120);
+    fig, ax = plt.subplots(figsize=(11, 11));
+    ax.set_title('Confusion Matrix ' + args.model_dir)
 
-      # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an  image to tensorboard
-      buf3 = io.BytesIO()
-      plt.savefig(buf3, format='png', dpi=120);
-      buf3.seek(0)
-      image3 = tf.image.decode_png(buf3.getvalue(), channels=4)
-      image3 = tf.expand_dims(image3, 0)
-      head, tail = os.path.split(args.model_dir)
-      tag = '{0}/m_cm_{1}'.format(tail, args.metrics_plot_name)
-      summary_op3 = tf.image_summary(tag, image3)
-      summary3 = sess.run(summary_op3)
-      writer.add_summary(summary3)
-      writer.close()
+    cmap = sns.diverging_palette(220, 10, as_cmap=True)
+    # compute confusion matrix and color with heatmap
+    # annotate with nubers if less than 10 labels, otherwise too cluttered
+    annot = (len(labels_list) < 10)
+    sns.heatmap(matrix, cmap=cmap, vmax=30, annot=annot,
+          square=True, xticklabels=labels_list, yticklabels=labels_list,
+          linewidths=.5, cbar_kws={"shrink": .5}, ax=ax)
+    plt.savefig(os.path.join(args.model_dir, 'm_cm_' + args.metrics_plot_name), format='png', dpi=120);
+
+    # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an  image to tensorboard
+    buf3 = io.BytesIO()
+    plt.savefig(buf3, format='png', dpi=120);
+    buf3.seek(0)
+    image3 = tf.image.decode_png(buf3.getvalue(), channels=4)
+    image3 = tf.expand_dims(image3, 0)
+    head, tail = os.path.split(args.model_dir)
+    summary_op3 = tf.image_summary('plt_confusion_matrix', image3)
+    summary3 = sess.run(summary_op3)
+    writer.add_summary(summary3)
+    writer.close()
+    print('Done')
