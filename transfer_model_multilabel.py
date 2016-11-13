@@ -55,8 +55,11 @@ def make_model_fn(class_count, final_tensor_name, learning_rate):
     if mode == ModeKeys.EVAL:
       prediction_dict['loss'] = cross_entropy
       # Create the operations we need to evaluate accuracy
-      acc = add_evaluation_step(final_tensor, ground_truth_input)
-      prediction_dict['accuracy'] = acc
+      acc_mean = add_eval_accuracy_mean(final_tensor, ground_truth_input)
+      prediction_dict['accuracy_mean'] = acc_mean
+
+      accuracy_all = add_eval_accuracy_all(final_tensor, ground_truth_input)
+      prediction_dict['accuracy_all'] = accuracy_all
 
     if mode == ModeKeys.INFER:
       prediction_dict["class_vector"] = final_tensor
@@ -70,24 +73,26 @@ METRICS = {
         metric_fn=metric_ops.streaming_mean,
         prediction_key='loss'
     ),
-    'accuracy': metric_spec.MetricSpec(
+    'accuracy_mean': metric_spec.MetricSpec(
         metric_fn=metric_ops.streaming_mean,
-        prediction_key='accuracy'
+        prediction_key='accuracy_mean'
+    ),
+    'accuracy_all': metric_spec.MetricSpec(
+        metric_fn=metric_ops.streaming_mean,
+        prediction_key='accuracy_all'
     )
 }
 
 def add_final_training_ops(learning_rate,
     class_count, mode, final_tensor_name,
     bottleneck_input, ground_truth_input):
-  """Adds a new softmax and fully-connected layer for training.
+  """Adds a new sigmoid and fully-connected layer for training.
 
   We need to retrain the top layer to identify our new classes, so this
   function adds the right operations to the graph, along with some variables
   to hold the weights, and then sets up all the gradients for the backward
   pass.
 
-  The set up for the softmax and fully-connected layers is based on:
-  https://tensorflow.org/versions/master/tutorials/mnist/beginners/index.html
 
   Args:
     learning_rate: learning rate
@@ -122,7 +127,7 @@ def add_final_training_ops(learning_rate,
       logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
       tf.histogram_summary(layer_name + '/pre_activations', logits)
 
-  final_tensor = tf.nn.softmax(logits, name=final_tensor_name)
+  final_tensor = tf.nn.sigmoid(logits, name=final_tensor_name)
   tf.histogram_summary(final_tensor_name + '/activations', final_tensor)
 
   if mode in [ModeKeys.EVAL, ModeKeys.TRAIN]:
@@ -134,7 +139,6 @@ def add_final_training_ops(learning_rate,
       tf.scalar_summary('cross entropy', cross_entropy_mean)
 
     with tf.name_scope('train'):
-      #train_step   = tf.train.AdamOptimizer().minimize( cross_entropy_mean, global_step=tf.contrib.framework.get_global_step())
       train_step = tf.train.GradientDescentOptimizer(
           learning_rate).minimize(
               cross_entropy_mean,
@@ -143,7 +147,7 @@ def add_final_training_ops(learning_rate,
   return (train_step, cross_entropy_mean, final_tensor)
 
 
-def add_evaluation_step(result_tensor, ground_truth_tensor):
+def add_eval_accuracy_all(result_tensor, ground_truth_tensor):
   """Inserts the operations we need to evaluate the accuracy of our results.
 
   Args:
@@ -156,8 +160,32 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
   """
   with tf.name_scope('accuracy'):
     with tf.name_scope('correct_prediction'):
-      correct_prediction = tf.equal(tf.round(tf.nn.sigmoid(result_tensor)), tf.round(ground_truth_tensor))
-    # accuracy over all the labels
+      correct_prediction = tf.equal(tf.round(result_tensor), tf.round(ground_truth_tensor))
+
+    # accuracy where all labels are correct
+    with tf.name_scope('accuracy'):
+      all_labels_true = tf.reduce_min(tf.cast(correct_prediction, tf.float32), 1)
+      evaluation_step = tf.reduce_mean(all_labels_true)
+
+    tf.scalar_summary('accuracy_mean_all', evaluation_step)
+
+  return evaluation_step
+
+def add_eval_accuracy_mean(result_tensor, ground_truth_tensor):
+  """Inserts the operations we need to evaluate the accuracy of our results.
+
+  Args:
+    result_tensor: The new final node that produces results.
+    ground_truth_tensor: The node we feed ground truth data
+    into.
+
+  Returns:
+    Nothing.
+  """
+  with tf.name_scope('accuracy'):
+    with tf.name_scope('correct_prediction'):
+      correct_prediction = tf.equal(tf.round(result_tensor), tf.round(ground_truth_tensor))
+
     with tf.name_scope('accuracy'):
       evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
       tf.scalar_summary('accuracy', evaluation_step)

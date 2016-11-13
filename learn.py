@@ -290,7 +290,7 @@ if __name__ == '__main__':
 
     # Define the custom estimator
     if args.multilabel:
-      class_count = len(all_label_names)
+      class_count = 2*len(all_label_names)
       model_fn = transfer_model_multilabel.make_model_fn(class_count, args.final_tensor_name, args.learning_rate)
     else:
       model_fn = transfer_model.make_model_fn(class_count, args.final_tensor_name, args.learning_rate)
@@ -307,10 +307,15 @@ if __name__ == '__main__':
 
     # We've completed our training, so run a test evaluation on some new images we haven't used before.
     if args.multilabel:
-      test_bottlenecks, test_ground_truth, _ = util.get_all_cached_bottlenecks_multilabel(
+      print("Getting cached bottlenecks for testing")
+      try:
+        test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel(
                                                             sess, df, image_lists, 'testing',
                                                             args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
                                                             bottleneck_tensor)
+      except Exception as ex:
+        import pdb;pdb.set_trace()
+        exit(-1)
     else:
       test_bottlenecks, test_ground_truth = util.get_all_cached_bottlenecks(
                                                             sess, image_lists, 'testing',
@@ -320,7 +325,11 @@ if __name__ == '__main__':
     test_ground_truth = np.array(test_ground_truth)
     print("evaluating....")
     if args.multilabel:
-      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model_multilabel.METRICS)
+      print("Evaluating cached bottlenecks")
+      try:
+        classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model_multilabel.METRICS)
+      except Exception as ex:
+        exit(-1)
     else:
       classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model.METRICS)
 

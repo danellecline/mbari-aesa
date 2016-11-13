@@ -248,14 +248,14 @@ def get_all_cached_bottlenecks_multilabel(sess, df, image_lists, category, bottl
           sess, image_lists, label_name, image_index, image_dir, category,
           bottleneck_dir, jpeg_data_tensor, bottleneck_tensor)
 
-      ground_truth = np.zeros(len(all_label_names), dtype=np.float32)
+      ground_truth = np.zeros((2, len(all_label_names)), dtype=np.float32)
       filename = os.path.split(image_path)[1]
       id = int(filename.split('.')[0])
       cls = df.iloc[id].Category
       group = df.iloc[id].group
-      ground_truth[all_label_names.index(cls.upper())] = 1.0
-      ground_truth[all_label_names.index(cls.upper())] = 1.0
-      ground_truths.append(ground_truth)
+      ground_truth[0][all_label_names.index(cls.upper())] = 1.0
+      ground_truth[1][all_label_names.index(group.lower())] = 1.0
+      ground_truths.append(ground_truth.flatten())
       bottlenecks.append(bottleneck)
 
   return bottlenecks, ground_truths, all_label_names
@@ -264,6 +264,7 @@ def get_all_cached_bottlenecks_multilabel(sess, df, image_lists, category, bottl
 def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir,
                                image_dir, jpeg_data_tensor, bottleneck_tensor):
 
+  print('=============>ERROR<=============================')
   bottlenecks = []
   ground_truths = []
   label_names = list(image_lists.keys())
