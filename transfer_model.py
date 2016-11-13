@@ -122,7 +122,7 @@ def add_final_training_ops(learning_rate,
       logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
       tf.histogram_summary(layer_name + '/pre_activations', logits)
 
-  final_tensor = tf.nn.sigmoid(logits, name=final_tensor_name) #tf.nn.softmax(logits, name=final_tensor_name)
+  final_tensor = tf.nn.softmax(logits, name=final_tensor_name)
   tf.histogram_summary(final_tensor_name + '/activations', final_tensor)
 
   if mode in [ModeKeys.EVAL, ModeKeys.TRAIN]:
