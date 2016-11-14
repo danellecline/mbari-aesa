@@ -189,11 +189,6 @@ def add_eval_accuracy_mean(result_tensor, ground_truth_tensor):
     with tf.name_scope('accuracy'):
       evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
       tf.scalar_summary('accuracy', evaluation_step)
-    # accuracy where all labels are correct
-    '''with tf.name_scope('accuracy'):
-      all_labels_true = tf.reduce_min(tf.cast(correct_prediction, tf.float32), 1)
-      evaluation_step = tf.reduce_mean(all_labels_true)
-      tf.scalar_summary('accuracy_mean_all', evaluation_step)'''
 
   return evaluation_step
 
