@@ -25,3 +25,7 @@ This will extract the images to a folder called "cropped_images" in your_project
 
     $ cd your_project_folder
     $ python preprocess.py --in_dir /Volumes/ScratchDrive/AESA/M56 tiles/raw/ --annotation_file /Volumes/ScratchDrive/AESA/M56_Annotations_v10.csv
+    
+     
+## Developer Notes
+

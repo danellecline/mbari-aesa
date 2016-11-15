@@ -116,7 +116,9 @@ def read_list_of_floats_from_file(tensor_size, file_path):
     s = struct.unpack('d' * tensor_size, f.read())
     return list(s)
 
-def create_image_lists(exclude_unknown, output_labels_file, output_labels_file_lt20, image_dir, testing_percentage, validation_percentage):
+def create_image_lists(df, exclude_unknown, exclude_partials, output_labels_file,
+                       output_labels_file_lt20, image_dir,
+                       testing_percentage, validation_percentage):
   """Builds a list of training images from the file system.
 
   Analyzes the sub folders in the image directory, splits them into stablestruct
@@ -127,6 +129,9 @@ def create_image_lists(exclude_unknown, output_labels_file, output_labels_file_l
   ordering as the images are processed.
 
   Args:
+    df: dataframe with annotations; required with exclude_partials argument
+    exclude_partials: exclude images with a partial identifier < 1.0
+    exclude_unknown: exclude any folder with the name UNKNOWN
     image_dir: String path to a folder containing subfolders of images.
     output_labels_file: String path to a file where labels for this subfolder of image will be stored
     output_labels_lt20: String path to a file where labels with less than 20 images will be stored
@@ -170,12 +175,21 @@ def create_image_lists(exclude_unknown, output_labels_file, output_labels_file_l
     if dir_name == image_dir:
       continue
     if exclude_unknown and "UNKNOWN" is dir_name :
-        print('------------>Skipping unknown<-----------')
+        print('------------>Skipping UKNOWN directory <-----------')
         continue
     print("Looking for images in '" + dir_name + "'")
     for extension in extensions:
       file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
-      file_list.extend(glob.glob(file_glob))
+      if exclude_partials:
+        for file in glob.glob(file_glob):
+          filename = os.path.split(file)[1]
+          id = int(filename.split('.')[0])
+          if df.iloc[id]['fauna.count'] == 1.0:
+            file_list.append(file)
+          else:
+            print('Excluding %s' % file)
+      else:
+        file_list.extend(glob.glob(file_glob))
     if not file_list:
       print('No files found')
       continue
@@ -223,7 +237,48 @@ def create_image_lists(exclude_unknown, output_labels_file, output_labels_file_l
 
   return result
 
-def get_all_cached_bottlenecks_multilabel(sess, df, image_lists, category, bottleneck_dir,
+def get_all_cached_bottlenecks_multilabel_feedingtype(sess, df, image_lists, category, bottleneck_dir,
+                               image_dir, jpeg_data_tensor, bottleneck_tensor):
+
+  bottlenecks = []
+  ground_truths = []
+
+  label_names = list(image_lists.keys())
+
+  # get a list of all labels by group and category(class); change cases to make them unique
+  class_unique = list(df.Category.unique())
+  classes = [name.upper() for name in class_unique]
+  groups_unique = list(df.group.unique())
+  groups = [name.lower() for name in groups_unique]
+  feeding_types_unique = list(df.feeding.types.unique())
+  feeding_types = [name.upper() for name in feeding_types_unique]
+  all_label_names = classes + groups + feeding_types
+
+  # go through the images in whatever order they are sorted - this might be by group or category(class)
+  for label_index in range(len(label_names)):
+    label_name = label_names[label_index]
+
+    for image_index in range(len(image_lists[label_name][category])):
+
+      bottleneck, image_path = get_or_create_bottleneck(
+          sess, image_lists, label_name, image_index, image_dir, category,
+          bottleneck_dir, jpeg_data_tensor, bottleneck_tensor)
+
+      ground_truth = np.zeros((3, len(all_label_names)), dtype=np.float32)
+      filename = os.path.split(image_path)[1]
+      id = int(filename.split('.')[0])
+      cls = df.iloc[id].Category
+      group = df.iloc[id].group
+      feeding_type = df.iloc[id].feeding.type
+      ground_truth[0][all_label_names.index(cls.upper())] = 1.0
+      ground_truth[1][all_label_names.index(group.lower())] = 1.0
+      ground_truth[2][all_label_names.index(feeding_type.upper())] = 1.0
+      ground_truths.append(ground_truth.flatten())
+      bottlenecks.append(bottleneck)
+
+  return bottlenecks, ground_truths, all_label_names
+
+def get_all_cached_bottlenecks_multilabel_category_group(sess, df, image_lists, category, bottleneck_dir,
                                image_dir, jpeg_data_tensor, bottleneck_tensor):
 
   bottlenecks = []
@@ -264,7 +319,6 @@ def get_all_cached_bottlenecks_multilabel(sess, df, image_lists, category, bottl
 def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir,
                                image_dir, jpeg_data_tensor, bottleneck_tensor):
 
-  print('=============>ERROR<=============================')
   bottlenecks = []
   ground_truths = []
   label_names = list(image_lists.keys())
@@ -279,7 +333,7 @@ def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir,
       ground_truths.append(ground_truth)
       bottlenecks.append(bottleneck)
 
-  return bottlenecks, ground_truths
+  return bottlenecks, ground_truths, label_names
 
 def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
                       jpeg_data_tensor, bottleneck_tensor):

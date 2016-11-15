@@ -84,10 +84,12 @@ def process_command_line():
     parser.add_argument('--random_brightness', type=int, default=0, help="""A percentage determining how much to randomly multiply the training image input pixels up or down by.""")
 
     # Custom selections AESA training set
-    parser.add_argument('--exclude_unknown', dest='exclude_unknown', action='store_true', help="Exclude classes that include the unknown category")
+    parser.add_argument('--exclude_unknown', dest='exclude_unknown', action='store_true', help="Exclude classes/categories that include the unknown category")
+    parser.add_argument('--exclude_partials', dest='exclude_partials', action='store_true', help="Exclude partial fauna images from training/testing")
     parser.add_argument('--metrics_plot_name', type=str, default='metrics_plot.png', help="""The name of the metric plot""")
     parser.add_argument('--annotation_file', type=str, help="Path to annotation file.")
-    parser.add_argument('--multilabel', action='store_true', default=False, help="Whether to learning a multilabel both by Category and Group)")
+    parser.add_argument('--multilabel_category_group', action='store_true', default=False, help="Whether to learning a multilabel both by Category and Group)")
+    parser.add_argument('--multilabel_group_feedingtype', action='store_true', default=False, help="Whether to learning a multilabel both by Group and Feeding Type)")
 
     args = parser.parse_args()
     return args
@@ -228,12 +230,17 @@ if __name__ == '__main__':
       else:
         df = pd.read_csv(args.annotation_file, sep=',')
 
-    if args.multilabel and not args.annotation_file:
+    if args.multilabel_category_group or args.multilabel_group_feedingtype and not args.annotation_file:
       print("Require the annotation file to determine the multiple labels")
       exit(-1)
 
-    print("Using model directory {0} and model from {1}".format(args.model_dir, conf.DATA_URL))
+    if args.exclude_partials and not args.annotation_file:
+      print("Require the annotation file to determine the partial specimen images")
+      exit(-1)
+
     # Set up the pre-trained graph.
+    print("Using model directory {0} and model from {1}".format(args.model_dir, conf.DATA_URL))
+    util.ensure_dir(args.model_dir)
     util.maybe_download_and_extract(data_url=conf.DATA_URL, dest_dir=args.incp_model_dir)
     model_filename = os.path.join(args.incp_model_dir, conf.MODEL_GRAPH_NAME)
     graph, bottleneck_tensor, jpeg_data_tensor, resized_image_tensor=(create_inception_graph(model_filename))
@@ -245,7 +252,8 @@ if __name__ == '__main__':
     util.ensure_dir(d)
 
     # Look at the folder structure, and create lists of all the images.
-    image_lists = util.create_image_lists(args.exclude_unknown, output_labels_file, output_labels_file_lt20,
+    image_lists = util.create_image_lists(df, args.exclude_unknown, args.exclude_partials, output_labels_file,
+                                          output_labels_file_lt20,
                                           args.image_dir, args.testing_percentage,
                                           args.validation_percentage)
 
@@ -275,21 +283,28 @@ if __name__ == '__main__':
       util.cache_bottlenecks(sess, image_lists, args.image_dir, args.bottleneck_dir,
                         jpeg_data_tensor, bottleneck_tensor)
 
-    if args.multilabel:
-      train_bottlenecks, train_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel(
+    if args.multilabel_category_group:
+      train_bottlenecks, train_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
                                                                           sess, df,
                                                                           image_lists, 'training',
                                                                           args.bottleneck_dir, args.image_dir,
                                                                           jpeg_data_tensor, bottleneck_tensor)
+    elif args.multilabel_group_feedingtype:
+      train_bottlenecks, train_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
+                                                                          sess, df,
+                                                                          image_lists, 'training',
+                                                                          args.bottleneck_dir, args.image_dir,
+                                                                          jpeg_data_tensor, bottleneck_tensor)
+
     else:
-      train_bottlenecks, train_ground_truth = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
+      train_bottlenecks, train_ground_truth, all_label_names = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
                                                                             args.bottleneck_dir, args.image_dir,
                                                                             jpeg_data_tensor, bottleneck_tensor)
     train_bottlenecks = np.array(train_bottlenecks)
     train_ground_truth = np.array(train_ground_truth)
 
     # Define the custom estimator
-    if args.multilabel:
+    if args.multilabel_category_group or args.multilabel_group_feedingtype:
       class_count = 2*len(all_label_names)
       model_fn = transfer_model_multilabel.make_model_fn(class_count, args.final_tensor_name, args.learning_rate)
     else:
@@ -306,30 +321,22 @@ if __name__ == '__main__':
         max_steps=args.num_steps)
 
     # We've completed our training, so run a test evaluation on some new images we haven't used before.
-    if args.multilabel:
-      print("Getting cached bottlenecks for testing")
-      try:
-        test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel(
-                                                            sess, df, image_lists, 'testing',
-                                                            args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
-                                                            bottleneck_tensor)
-      except Exception as ex:
-        import pdb;pdb.set_trace()
-        exit(-1)
+    if args.multilabel_category_group or args.multilabel_group_feedingtype:
+      test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel(
+                                                          sess, df, image_lists, 'testing',
+                                                          args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
+                                                          bottleneck_tensor)
     else:
-      test_bottlenecks, test_ground_truth = util.get_all_cached_bottlenecks(
+      test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks(
                                                             sess, image_lists, 'testing',
                                                             args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
                                                             bottleneck_tensor)
     test_bottlenecks = np.array(test_bottlenecks)
     test_ground_truth = np.array(test_ground_truth)
     print("evaluating....")
-    if args.multilabel:
+    if args.multilabel_category_group or args.multilabel_group_feedingtype:
       print("Evaluating cached bottlenecks")
-      try:
-        classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model_multilabel.METRICS)
-      except Exception as ex:
-        exit(-1)
+      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model_multilabel.METRICS)
     else:
       classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model.METRICS)
 
@@ -342,15 +349,14 @@ if __name__ == '__main__':
         f.write(output_labels)
 
     print("\nGetting metrics...")
-    '''for name in image_lists.iterkeys():
-        image_dir = image_lists[name]['dir']
-        paths = [ '%s/%s/%s'%(args.image_dir, image_dir, filename) for filename in image_lists[name]['testing'] ]'''
-    '''util_plot.plot_confusion_matrix(args, classifier, test_bottlenecks.astype(np.float32), test_ground_truth,
+    # these plots don't apply to multilabels
+    if not args.multilabel_category_group and not args.multilabel_group_feedingtype:
+      util_plot.plot_confusion_matrix(args, classifier, test_bottlenecks.astype(np.float32), test_ground_truth,
                                     output_labels_file, output_labels_file_lt20)
 
     for name in image_lists.iterkeys():
         dir = image_lists[name]['dir']
         paths = [ '%s/%s/%s'%(args.image_dir, dir, filename) for filename in image_lists[name]['testing'] ]
 
-    add_images(sess, paths, args.model_dir)'''
+    add_images(sess, paths, args.model_dir)
     print("Done !")
