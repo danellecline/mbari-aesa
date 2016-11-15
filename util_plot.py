@@ -23,7 +23,7 @@ import os
 import math
 import numpy as np
 import tensorflow as tf
-#import seaborn as sns
+import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
@@ -72,7 +72,6 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
   with sess.as_default():
     results_y_test = {}
     results_y_score = {}
-    average_precision =  {}
     matrix = np.zeros([len(labels_list),len(labels_list)],int)
     predictions = classifier.predict(x=bottlenecks, as_iterable=True)
     print("============>Predictions:")
@@ -92,7 +91,7 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
         results_y_test[key].append(0)
       results_y_score[key].append(p['class_vector'][predicted])
 
-      print("%i is predicted as %s actual class %s vector %s " % (j, labels_list[predicted], labels_list[actual], p['class_vector']))
+      print("%i is predicted as %s actual class %s " % (j, labels_list[predicted], labels_list[actual]))
       matrix[predicted, actual] += 1
       j += 1
 
@@ -106,7 +105,7 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
     #sns.set()
     writer = tf.train.SummaryWriter(args.model_dir)
     gs = gridspec.GridSpec(num_plots, 1)
-    # compute Precision-Recall per each class and plot curve per each class
+    # compute ROC per each class and plot curve per each class
     print('============>Creating ROC and CM Plots')
     a = 0
     j = 0
@@ -140,9 +139,13 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
         print('===========> Adding to plot %s <=======' % name)
         # compute ROC curve and ROC area for this class and plot
         fpr, tpr, _ = roc_curve(results_y_test[name], results_y_score[name])
-        roc_auc = auc(fpr, tpr)
-        ax.plot(fpr, tpr, linestyle=style,  marker=marker, color=color, markersize=marker_size,
-         label='category {0} (area = {1:0.2f})'.format(name, roc_auc));
+        if np.isnan(fpr).any() or np.isnan(tpr).any():
+          ax.annotate('unassigned category ' + name, xy=(1, 0 + j), xycoords='axes fraction', horizontalalignment='right',
+          verticalalignment='bottom', fontsize=10)
+          j += .02
+        else:
+          roc_auc = auc(fpr, tpr)
+          ax.plot(fpr, tpr, linestyle=style,  marker=marker, color=color, markersize=marker_size, label='category {0} (area = {1:0.2f})'.format(name, roc_auc));
 
       if count % max_per_plot  == 0 or count == len(labels_list):
         ax.legend(loc="lower left")
@@ -152,7 +155,7 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
     plt.savefig(buf2, format='png', dpi=120);
     buf2.seek(0)
     #plt.show()
-    # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an  image to tensorboard
+    # Convert PNG buffer to TF image, add batch dimension and image summary; this will post the plot as an image to tensorboard
     image2 = tf.image.decode_png(buf2.getvalue(), channels=4)
     image2 = tf.expand_dims(image2, 0)
     head, tail = os.path.split(args.model_dir)
@@ -165,9 +168,9 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
     fig, ax = plt.subplots(figsize=(11, 11));
     ax.set_title('Confusion Matrix ' + args.model_dir)
 
-    '''cmap = sns.diverging_palette(220, 10, as_cmap=True)
+    cmap = sns.diverging_palette(220, 10, as_cmap=True)
     # compute confusion matrix and color with heatmap
-    # annotate with nubers if less than 10 labels, otherwise too cluttered
+    # annotate with numbers if less than 10 labels, otherwise too cluttered
     annot = (len(labels_list) < 10)
     sns.heatmap(matrix, cmap=cmap, vmax=30, annot=annot,
           square=True, xticklabels=labels_list, yticklabels=labels_list,
@@ -183,6 +186,6 @@ def plot_confusion_matrix(args, classifier, bottlenecks, test_ground_truth, labe
     head, tail = os.path.split(args.model_dir)
     summary_op3 = tf.image_summary('plt_confusion_matrix', image3)
     summary3 = sess.run(summary_op3)
-    writer.add_summary(summary3)'''
+    writer.add_summary(summary3)
     writer.close()
     print('Done')
