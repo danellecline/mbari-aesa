@@ -25,7 +25,8 @@ def process_command_line():
     from argparse import RawTextHelpFormatter
 
     examples = 'Examples:' + '\n\n'
-    examples += sys.argv[0] + """--in_dir /Volumes/ScratchDrive/AESA/M56 tiles/raw/ --out_dir /tmp/data/images_all/cropped_images/
+    examples += sys.argv[0] + """--in_dir /Volumes/ScratchDrive/AESA/M56 tiles/raw/ --by_category
+              --out_dir /tmp/data/images_category/cropped_images/
               --annotation_file /Volumes/ScratchDrive/AESA/M56_Annotations_v10.csv \n"""
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
                                      description='Extract cropped images from tiles and associated annotations',
