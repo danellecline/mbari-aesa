@@ -12,12 +12,12 @@ Both single and multi-label classification can be tested, along with various ima
 distortions, and learning rates.
 
 An example tiled image this is intended to work with:
-[![ Image link ](https://github.com/danellecline/mbari-aesa/raw/master/img/00040040_300x300.jpg)]
+[![ Image link ](https://github.com/danellecline/mbari-aesa/raw/master/img/M56_10441297_12987348573247_resized.jpg)]
 
 Images are either classified by group, category, feeding type, or some combination thereof.
 
-[![ Category example  ](https://github.com/danellecline/mbari-aesa/raw/master/img/category_resized.jpg)]
-[![ Group example  ](https://github.com/danellecline/mbari-aesa/raw/master/img/group_resized.jpg)]
+[![ Category example  ](https://github.com/danellecline/mbari-aesa/raw/master/img/category_resized.png)]
+[![ Group example  ](https://github.com/danellecline/mbari-aesa/raw/master/img/group_resized.png)]
 
 This code is based on the TensorFlow example:
 https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/image_retraining/retrain.py
