@@ -29,7 +29,9 @@ bottleneck_group_dir = os.path.join(os.getcwd(),'data/images_group/bottleneck')
 annotation_file = os.path.join(os.getcwd(),'M56_Annotations_v10.csv')
 
 all_options = '--num_steps 30000 --testing_percentage 30 --exclude_unknown --exclude_partial --annotation_file %s' % annotation_file
+
 distortion_map = {
+              '--learning_rate .01': 'default_p01_learning_rate',
               '--learning_rate .1': 'default_p1_learning_rate',
               '--learning_rate 1' : 'default_1_learning_rate',
               '--learning_rate 10' : 'default_10_learning_rate',
