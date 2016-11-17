@@ -246,13 +246,11 @@ def get_all_cached_bottlenecks_multilabel_feedingtype(sess, df, image_lists, cat
   label_names = list(image_lists.keys())
 
   # get a list of all labels by group and category(class); change cases to make them unique
-  class_unique = list(df.Category.unique())
-  classes = [name.upper() for name in class_unique]
   groups_unique = list(df.group.unique())
   groups = [name.lower() for name in groups_unique]
-  feeding_types_unique = list(df.feeding.types.unique())
+  feeding_types_unique = list(df[u'feeding.type'].unique())
   feeding_types = [name.upper() for name in feeding_types_unique]
-  all_label_names = classes + groups + feeding_types
+  all_label_names = groups + feeding_types
 
   # go through the images in whatever order they are sorted - this might be by group or category(class)
   for label_index in range(len(label_names)):
@@ -264,15 +262,13 @@ def get_all_cached_bottlenecks_multilabel_feedingtype(sess, df, image_lists, cat
           sess, image_lists, label_name, image_index, image_dir, category,
           bottleneck_dir, jpeg_data_tensor, bottleneck_tensor)
 
-      ground_truth = np.zeros((3, len(all_label_names)), dtype=np.float32)
+      ground_truth = np.zeros((2, len(all_label_names)), dtype=np.float32)
       filename = os.path.split(image_path)[1]
       id = int(filename.split('.')[0])
-      cls = df.iloc[id].Category
       group = df.iloc[id].group
-      feeding_type = df.iloc[id].feeding.type
-      ground_truth[0][all_label_names.index(cls.upper())] = 1.0
-      ground_truth[1][all_label_names.index(group.lower())] = 1.0
-      ground_truth[2][all_label_names.index(feeding_type.upper())] = 1.0
+      feeding_type = df.iloc[id][u'feeding.type']
+      ground_truth[0][all_label_names.index(group.lower())] = 1.0
+      ground_truth[1][all_label_names.index(feeding_type.upper())] = 1.0
       ground_truths.append(ground_truth.flatten())
       bottlenecks.append(bottleneck)
 
