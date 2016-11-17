@@ -1,2 +1,5 @@
-seaborn==
-scipy==
+seaborn==0.7.1
+scipy==0.18.1
+numpy==1.11.2
+pandas==0.19.1
+tensorflow==0.11.0rc2
