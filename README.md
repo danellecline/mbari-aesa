@@ -16,8 +16,8 @@ An example tiled image this is intended to work with:
 
 Images are either classified by group, category, feeding type, or some combination thereof.
 
-[![ Category example  ](https://github.com/danellecline/mbari-aesa/raw/master/img/category_resized.png)]
-[![ Group example  ](https://github.com/danellecline/mbari-aesa/raw/master/img/group_resized.png)]
+[![ Category example  ](https://github.com/danellecline/mbari-aesa/raw/master/img/category_resized.jpg)]
+[![ Group example  ](https://github.com/danellecline/mbari-aesa/raw/master/img/group_resized.jpg)]
 
 This code is based on the TensorFlow example:
 https://github.com/tensorflow/tensorflow/blob/master/tensorflow/examples/image_retraining/retrain.py
