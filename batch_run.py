@@ -14,6 +14,7 @@ Runs transfer learning tests on AESA images
 
 import os
 import subprocess
+import util
 
 # image directory where cropped images are located; generated either by group or by category
 image_category_dir = os.path.join(os.getcwd(),'data/images_category/cropped_images')
@@ -51,35 +52,40 @@ model_map = {
             '--exclude_partial --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):
               'category_sans_partials',
             '--exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_group_dir, bottleneck_group_dir):
-              'category_sans_unk',
+              'group_sans_unk',
             '--exclude_partial --image_dir {0} --bottleneck_dir {1}'.format(image_group_dir, bottleneck_group_dir):
-              'category_sans_partials'
+              'group_sans_partials'
             }
 
 model_map_multilabel = {
-            '--multilabel_category_group':'multilabel_category_group',
-            '--multilabel_group_feedingtype':'multilabel_group_feedingtype',
-            '--multilabel_category_group --exclude_unknown':'multilabel_category_group_sans_unk',
-            '--multilabel_category_group --exclude_partial':'multilabel_category_group_sans_partial',
-            '--multilabel_category_group --exclude_partial --exclude_unknown':'multilabel_category_group_sans_partial_unk',
-            '--multilabel_group_feedingtype --exclude_unknown':'multilabel_group_feedingtype_sans_unk',
-            '--multilabel_group_feedingtype --exclude_partial':'multilabel_group_feedingtype_sans_partial',
-            '--multilabel_group_feedingtype --exclude_partial --exclude_unknown':'multilabel_group_feedingtype_sans_partial_unk'
+            '--multilabel_category_group --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_category_group',
+            '--multilabel_group_feedingtype --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_group_feedingtype',
+            '--multilabel_category_group --exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_category_group_sans_unk',
+            '--multilabel_category_group --exclude_partial --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_category_group_sans_partial',
+            '--multilabel_category_group --exclude_partial --exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_category_group_sans_partial_unk',
+            '--multilabel_group_feedingtype --exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_group_feedingtype_sans_unk',
+            '--multilabel_group_feedingtype --exclude_partial --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_group_feedingtype_sans_partial',
+            '--multilabel_group_feedingtype --exclude_partial --exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_group_feedingtype_sans_partial_unk'
 }
 
-model_out_dir = os.getcwd()
+model_out_dir = os.path.join(os.getcwd(),'data/model_output_final')
+
 for option_model,model_sub_dir in model_map.iteritems():
   for option_distort,distort_sub_dir in distortion_map.iteritems():
-    cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}/{4}/{5}'.format(all_options, option_model, option_distort,
-                                                                         model_out_dir, model_sub_dir,distort_sub_dir)
-    print(cmd)
-    subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
-    subproc.communicate()
+    out_dir = '{0}/{1}/{2}'.format(model_out_dir, model_sub_dir, distort_sub_dir) 
+    util.ensure_dir(out_dir)
+    if not os.listdir(out_dir):
+      cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(all_options, option_model, option_distort, out_dir)
+      print(cmd)
+      subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
+      subproc.communicate()
 
 for option_model,model_sub_dir in model_map_multilabel.iteritems():
   for option_distort,distort_sub_dir in distortion_map.iteritems():
-    cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}/{4}/{5}'.format(all_options, option_model, option_distort,
-                                                                         model_out_dir, model_out_dir,distort_sub_dir)
-    print(cmd)
-    subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
-    subproc.communicate()
+    out_dir = '{0}/{1}/{2}'.format(model_out_dir, model_sub_dir, distort_sub_dir) 
+    util.ensure_dir(out_dir)
+    if not os.listdir(out_dir):
+      cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(all_options, option_model, option_distort, out_dir)
+      print(cmd)
+      subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
+      subproc.communicate()
