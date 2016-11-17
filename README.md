@@ -6,7 +6,7 @@ Autonomous Ecological Surveying of the Abyss (AESA) project, extract images from
 annotations, and using a transfer learning method to train them for automated classification.
 
 This is test code to help evaluate the effectiveness of the transfer learning method for
-deep-sea animals classification.
+deep-sea animal classification using a deep-learning model.
 
 Both single and multi-label classification can be tested, along with various images
 distortions, and learning rates.
