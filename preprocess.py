@@ -35,8 +35,6 @@ def process_command_line():
     group.add_argument('--by_category', action='store_true', help='Create directory of images by the column labeled Category')
     group.add_argument('--by_group', action='store_true', help='Create directory of images by the column labeled group')
     parser.add_argument('--in_dir', type=str, required=True, help="Path to folders of raw tiled images.")
-    parser.add_argument('--by_category', type=str, required=True, help="Path to folders of raw tiled images.")
-    parser.add_argument('--by_group', type=str, required=True, help="Path to folders of raw tiled images.")
     parser.add_argument('--out_dir', type=str, required=False, default=os.path.join(os.getcwd(),'cropped_images'), help="Path to store cropped images.")
     parser.add_argument('--annotation_file', type=str, required=True, default='/Volumes/ScratchDrive/AESA/M56_Annotations_v10.csv', help="Path to annotation file.")
     args = parser.parse_args()
