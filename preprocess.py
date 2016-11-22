@@ -65,6 +65,7 @@ if __name__ == '__main__':
   args = process_command_line()
 
   util.ensure_dir(args.out_dir)
+  failed_file = open(os.path.join(args.out_dir, 'failed_crops.txt', 'w'))
 
   aesa_annotation = namedtuple("Annotation", ["centerx", "centery", "category", "mtype", "measurement", "index", "image_file"])
 
@@ -106,7 +107,7 @@ if __name__ == '__main__':
 
       except Exception as ex:
           print ex
-          # TODO: store missing files to a log file
+          failed_file.write('Error cropping annotation row {1} filename {2} annotation'.format(index, filename, category))
 
   except Exception as ex:
       print ex
