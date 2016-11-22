@@ -37,6 +37,7 @@ def process_command_line():
     parser.add_argument('--in_dir', type=str, required=True, help="Path to folders of raw tiled images.")
     parser.add_argument('--out_dir', type=str, required=False, default=os.path.join(os.getcwd(),'cropped_images'), help="Path to store cropped images.")
     parser.add_argument('--annotation_file', type=str, required=True, default='/Volumes/ScratchDrive/AESA/M56_Annotations_v10.csv', help="Path to annotation file.")
+    parser.add_argument('--file_format', type=str, required=False, help="Alternative file prefix to use for calculating the associated frame the annotation is from, e.g. M56_10441297_%d.jpg'")
     args = parser.parse_args()
     return args
 
@@ -49,7 +50,7 @@ def extract_annotation(raw_file, annotation, out_dir):
     :return:
     '''
     if "Length" in annotation.mtype :
-        crop_pixels = int(float(annotation.measurement)) + 50
+        crop_pixels = int(float(annotation.measurement)) + 75
     else:
         crop_pixels = 500
     w = crop_pixels / 2
@@ -63,7 +64,7 @@ if __name__ == '__main__':
   args = process_command_line()
 
   util.ensure_dir(args.out_dir)
-  failed_file = open(os.path.join(args.out_dir, 'failed_crops.txt', 'w'))
+  failed_file = open(os.path.join(args.out_dir, 'failed_crops.txt'), 'w')
 
   aesa_annotation = namedtuple("Annotation", ["centerx", "centery", "category", "mtype", "measurement", "index", "image_file"])
 
@@ -74,7 +75,10 @@ if __name__ == '__main__':
     for index, row in df.iterrows():
 
       try:
-        filename = os.path.join(args.in_dir, 'M56_10441297_%d.jpg' % int(row['FileName']))
+        if args.file_format:
+          filename = os.path.join(args.in_dir, args.file_format % int(row['FileName']))
+        else:
+          filename = os.path.join(args.in_dir, row['FileName'])
 
         # get image height and width of raw tile
         height, width = util.get_dims(filename)
@@ -105,7 +109,7 @@ if __name__ == '__main__':
 
       except Exception as ex:
           print ex
-          failed_file.write('Error cropping annotation row {1} filename {2} annotation'.format(index, filename, category))
+          failed_file.write('Error cropping annotation row {1} filename {2} annotation {3}'.format(index, filename, category))
 
   except Exception as ex:
       print ex
