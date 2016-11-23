@@ -84,19 +84,18 @@ if __name__ == '__main__':
         height, width = util.get_dims(filename)
         head, tail = os.path.split(filename)
         stem = tail.split('.')[0]
+        category = row['Category']
+        group = row['group']
 
         # create separate directory for each category or group
         if args.by_category:
-          category = row['Category']
           dir = ('%s%s/' % (args.out_dir, category.upper()))
           util.ensure_dir(dir)
         elif args.by_group:
-          group = row['group']
           dir = ('%s%s/' % (args.out_dir, group.upper()))
           util.ensure_dir(dir)
         else:
           # default to by Category
-          category = row['Category']
           dir = ('%s%s/' % (args.out_dir, category.upper()))
           util.ensure_dir(dir)
 
@@ -109,7 +108,7 @@ if __name__ == '__main__':
 
       except Exception as ex:
           print ex
-          failed_file.write('Error cropping annotation row {1} filename {2} annotation {3}'.format(index, filename, category))
+          failed_file.write("Error cropping annotation row {0} filename {1} annotation {2}\n".format(index, filename, category))
 
   except Exception as ex:
       print ex
