@@ -47,12 +47,15 @@ def get_dims(image):
   subproc = subprocess.Popen(cmd, env=os.environ, shell=True, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
                              stdout=subprocess.PIPE)
   out, err = subproc.communicate()
-  f = out.rstrip()
-  a = f.split(' ')[3]
-  size = a.split('+')[0]
-  width = int(size.split('x')[0])
-  height = int(size.split('x')[1])
-  return height, width
+  # get image height and width of raw tile
+  p = re.compile(r'(?P<width>\d+)x(?P<height>\d+)')
+  match = re.search(pattern=p, string=out)
+  if (match):
+      width = match.group("width")
+      height = match.group("height")
+      return height, width
+
+  raise Exception('Cannot find height/width for image %s' % image)
 
 def ensure_dir(d):
   """

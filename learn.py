@@ -78,7 +78,7 @@ def process_command_line():
     # Controls the distortions used during training.
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--flip_left_right', action='store_true', default=False, help="Whether to randomly flip the training images horizontally.")
-    group.add_argument('--rotate90', action='store_true', default=False, help="Whether to randomly rotate the training images 90.")
+    group.add_argument('--rotate90', action='store_true', default=False, help="Whether to randomly rotate the training images 90 degrees.")
     parser.add_argument('--random_crop', type=int, default=0, help="""A percentage determining how much of a margin to randomly crop off the training images.""")
     parser.add_argument('--random_scale', type=int, default=0, help="""A percentage determining how much to randomly scale up the size of the training images by.""")
     parser.add_argument('--random_brightness', type=int, default=0, help="""A percentage determining how much to randomly multiply the training image input pixels up or down by.""")
@@ -230,13 +230,13 @@ if __name__ == '__main__':
       else:
         df = pd.read_csv(args.annotation_file, sep=',')
 
-    if args.multilabel_category_group or args.multilabel_group_feedingtype and not args.annotation_file:
+    '''if args.multilabel_category_group or args.multilabel_group_feedingtype and not args.annotation_file:
       print("Require the annotation file to determine the multiple labels")
       exit(-1)
 
     if args.exclude_partials and not args.annotation_file:
       print("Require the annotation file to determine the partial specimen images")
-      exit(-1)
+      exit(-1)'''
 
     # Set up the pre-trained graph.
     print("Using model directory {0} and model from {1}".format(args.model_dir, conf.DATA_URL))
@@ -321,8 +321,13 @@ if __name__ == '__main__':
         max_steps=args.num_steps)
 
     # We've completed our training, so run a test evaluation on some new images we haven't used before.
-    if args.multilabel_category_group or args.multilabel_group_feedingtype:
-      test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel(
+    if args.multilabel_category_group:
+      test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
+                                                          sess, df, image_lists, 'testing',
+                                                          args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
+                                                          bottleneck_tensor)
+    elif args.multilabel_group_feedingtype:
+      test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
                                                           sess, df, image_lists, 'testing',
                                                           args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
                                                           bottleneck_tensor)
