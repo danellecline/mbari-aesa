@@ -84,18 +84,19 @@ if __name__ == '__main__':
         height, width = util.get_dims(filename)
         head, tail = os.path.split(filename)
         stem = tail.split('.')[0]
-        category = row['Category']
-        group = row['group']
 
         # create separate directory for each category or group
         if args.by_category:
+          category = row['Category']
           dir = ('%s%s/' % (args.out_dir, category.upper()))
           util.ensure_dir(dir)
         elif args.by_group:
+          group = row['group']
           dir = ('%s%s/' % (args.out_dir, group.upper()))
           util.ensure_dir(dir)
         else:
           # default to by Category
+          category = row['Category']
           dir = ('%s%s/' % (args.out_dir, category.upper()))
           util.ensure_dir(dir)
 
