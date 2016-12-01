@@ -38,20 +38,14 @@ Create virtual environment with correct dependencies
     $ source venv-mbari-aesa/bin/activate
     $ pip install -r requirements.txt 
 
-Install Tensorflow, selecting the correct binary for your hardware
-# Ubuntu/Linux 64-bit, CPU only, Python 2.7
-(venv-mbari-aesa)$ export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-0.11.0-cp27-none-linux_x86_64.whl
+Install Tensorflow, selecting the correct binary for your hardware.
 
-# Ubuntu/Linux 64-bit, GPU enabled, Python 2.7
-# Requires CUDA toolkit 8.0 and CuDNN v5. For other versions, see "Install from sources" below.
-(venv-mbari-aesa)$ export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow-0.11.0-cp27-none-linux_x86_64.whl
+For example, for Mac OS X, CPU only, Python 2.7:
 
-# Mac OS X, CPU only, Python 2.7:
-(venv-mbari-aesa)$ export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/mac/cpu/tensorflow-0.11.0-py2-none-any.whl
-
-# Mac OS X, GPU enabled, Python 2.7:
-(venv-mbari-aesa)$ export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/mac/gpu/tensorflow-0.11.0-py2-none-any.whl
-
+    $ export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/mac/cpu/tensorflow-0.11.0-py2-none-any.whl
+    $ pip install --upgrade $TF_BINARY_URL
+    
+See [TensorFlow virtual environment installation instructions](https://www.tensorflow.org/versions/r0.12/get_started/os_setup.html#virtualenv-installation) for more information
 
 Check-out code
 
