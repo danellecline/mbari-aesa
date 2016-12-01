@@ -43,7 +43,7 @@ def process_command_line():
 
 def extract_annotation(raw_file, annotation, out_dir):
     '''
-     crop image into square tile centered on the annotation and pad by 50 pixels
+     crop image into square tile centered on the annotation and pad by 75 pixels
     :param raw_file:  path to file
     :param annotation: annotation tuple
     :param out_dir: directory to store cropped image

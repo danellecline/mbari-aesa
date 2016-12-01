@@ -92,33 +92,42 @@ if __name__ == '__main__':
 
       category_label = row['Morphotype'].upper()
       index_clean = int(row['CropNo'].split('.')[0])
-      reassigned_label = row['Reassigned.value'].upper()
+      reassigned_category = row['Reassigned.value'].upper()
       category = df_annotation.iloc[index_clean].Category.upper()
       group = df_annotation.iloc[index_clean].group.upper()
 
       image_file_category = '%s/%s/%06d.jpg' % (args.category_dir, category, index_clean)
       image_file_group = '%s/%s/%06d.jpg' % (args.group_dir, group, index_clean)
 
-      if reassigned_label.upper() == "REMOVE":
+      if reassigned_category.upper() == "REMOVE":
         if os.path.exists(image_file_category):
           os.remove(image_file_category)
         if os.path.exists(image_file_group):
           os.remove(image_file_group)
       else:
-        if os.path.exists(image_file_category):
-          if reassigned_label in category_group_map.keys():
-            dir_category = '%s/%s' % (args.category_dir, reassigned_label)
+        #if os.path.exists(image_file_category):
+        if os.path.exists(image_file_group) and os.path.exists(image_file_category):
+          if reassigned_category in category_group_map.keys():
+            dir_category = '%s/%s' % (args.category_dir, reassigned_category)
             util.ensure_dir(dir_category)
-            dir_group = '%s/%s' % (args.group_dir, category_group_map[reassigned_label])
+            dir_group = '%s/%s' % (args.group_dir, category_group_map[reassigned_category])
             util.ensure_dir(dir_group)
 
-            dst = '%s/%s/%06d.jpg' % (args.category_dir, reassigned_label, index_clean)
+            # copy file from original category to reassigned category
+            dst = '%s/%s/%06d.jpg' % (args.category_dir, reassigned_category, index_clean)
             shutil.copyfile(image_file_category, dst)
-            dst = '%s/%s/%06d.jpg' % (args.group_dir, category_group_map[reassigned_label], index_clean)
+
+            # copy file from original group to reassigned group
+            dst = '%s/%s/%06d.jpg' % (args.group_dir, category_group_map[reassigned_category], index_clean)
             shutil.copyfile(image_file_category, dst)
+
+            # remove from original category
             os.remove(image_file_category)
+
+            # remove from original group
+            os.remove(image_file_group)
           else:
-            print('Cannot find %s in category_group_map' % reassigned_label)
+            print('Cannot find %s in category_group_map' % reassigned_category)
             exit(-1)
 
   except Exception as ex:

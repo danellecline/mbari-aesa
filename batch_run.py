@@ -72,7 +72,7 @@ model_out_dir = os.path.join(os.getcwd(),'data/model_output_final_m56_75pad')
 
 all_options = '--num_steps 30000 --testing_percentage 30 --annotation_file %s --learning_rate .01' % annotation_file
 
-for option_model,model_sub_dir in model_map.iteritems():
+'''for option_model,model_sub_dir in model_map.iteritems():
   for option_distort,distort_sub_dir in distortion_map.iteritems():
     out_dir = '{0}/{1}/{2}'.format(model_out_dir, model_sub_dir, distort_sub_dir) 
     util.ensure_dir(out_dir)
@@ -81,7 +81,7 @@ for option_model,model_sub_dir in model_map.iteritems():
         cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(all_options, option_model, option_distort, out_dir)
         print(cmd)
         subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
-        subproc.communicate()
+        subproc.communicate()'''
 
 all_options = '--num_steps 30000 --testing_percentage 30 --annotation_file %s --learning_rate 1' % annotation_file
 
@@ -92,7 +92,6 @@ for option_model,model_sub_dir in model_map_multilabel.iteritems():
     if not os.listdir(out_dir):
       if not glob.glob(out_dir + '/model*'):
         cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(all_options, option_model, option_distort, out_dir)
-        print(cmd)
-        import pdb;pdb.set_trace()
+        print(cmd) 
         subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
         subproc.communicate()
