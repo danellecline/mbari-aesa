@@ -77,3 +77,7 @@ TODO: add information here on the confusion matrix/ROC curve location
 
 ## Developer Notes
 
+Training images for M535455 extracted with
+
+    $ python preprocess.py --in_dir /Volumes/ScratchDrive/AESA/JC062/ --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/ --annotation_file /Volumes/ScratchDrive/AESA/JC062_annotations_for_Danelle.csv --by_category 
+    $ python preprocess.py --in_dir /Volumes/ScratchDrive/AESA/JC062/ --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/ --annotation_file /Volumes/ScratchDrive/AESA/JC062_annotations_for_Danelle.csv --by_group
