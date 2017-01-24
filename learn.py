@@ -86,7 +86,6 @@ def process_command_line():
     # Custom selections AESA training set
     parser.add_argument('--exclude_unknown', dest='exclude_unknown', action='store_true', help="Exclude classes/categories that include the unknown category")
     parser.add_argument('--exclude_partials', dest='exclude_partials', action='store_true', help="Exclude partial fauna images from training/testing")
-    parser.add_argument('--metrics_plot_name', type=str, default='metrics_plot.png', help="""The name of the metric plot""")
     parser.add_argument('--annotation_file', type=str, help="Path to annotation file.")
     parser.add_argument('--multilabel_category_group', action='store_true', default=False, help="Whether to learning a multilabel both by Category and Group)")
     parser.add_argument('--multilabel_group_feedingtype', action='store_true', default=False, help="Whether to learning a multilabel both by Group and Feeding Type)")
@@ -356,7 +355,7 @@ if __name__ == '__main__':
     print("\nGetting metrics...")
     # these plots don't apply to multilabels
     if not args.multilabel_category_group and not args.multilabel_group_feedingtype:
-      util_plot.plot_confusion_matrix(args, classifier, test_bottlenecks.astype(np.float32), test_ground_truth,
+      util_plot.plot_metrics(args, df, classifier, test_bottlenecks.astype(np.float32), test_ground_truth,
                                     output_labels_file, output_labels_file_lt20)
 
     for name in image_lists.iterkeys():
