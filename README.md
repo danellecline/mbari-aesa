@@ -77,7 +77,13 @@ TODO: add information here on the confusion matrix/ROC curve location
 
 ## Developer Notes
 
-Training images for M535455 extracted with
+Training images for JC062 extracted with
 
-    $ python preprocess.py --in_dir /Volumes/ScratchDrive/AESA/JC062/ --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/ --annotation_file /Volumes/ScratchDrive/AESA/JC062_annotations_for_Danelle.csv --by_category 
-    $ python preprocess.py --in_dir /Volumes/ScratchDrive/AESA/JC062/ --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/ --annotation_file /Volumes/ScratchDrive/AESA/JC062_annotations_for_Danelle.csv --by_group
+    $ python preprocess.py --in_dir /Volumes/ScratchDrive/AESA/JC062/ --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_75pad/ --annotation_file /Volumes/ScratchDrive/AESA/JC062_annotations_for_Danelle.csv --by_category 
+    $ python preprocess.py --in_dir /Volumes/ScratchDrive/AESA/JC062/ --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_75pad/ --annotation_file /Volumes/ScratchDrive/AESA/JC062_annotations_for_Danelle.csv --by_group
+
+Training images for M53545
+
+    $ python preprocess.py --in_dir "/Volumes/My Passport/M535455 tiles/" --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/M535455_v9_all_annotations_aspect_ratio_corrected_wo_commons.csv --by_category --file_format %s.jpg
+    $ python preprocess.py --in_dir "/Volumes/My Passport/M535455 tiles/" --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/M535455_v9_all_annotations_aspect_ratio_corrected_wo_commons.csv --by_group --file_format %s.jpg
+
