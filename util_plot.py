@@ -142,7 +142,7 @@ def plot_metrics(args, df, classifier, bottlenecks, test_ground_truth, labels_li
       ax.set_ylabel('Score')
       ax.set_xlabel('Class')
       if a == 0:
-        ax.set_title('Score by class\n' + args.model_dir)
+        ax.set_title('Score by Class\n' + args.model_dir)
 
       ax.set_xticks(np.arange(num_cls) + width / 2)
       ax.set_yticks(np.arange(0, 1.0, 0.20))
