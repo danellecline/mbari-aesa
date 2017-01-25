@@ -84,6 +84,6 @@ Training images for JC062 extracted with
 
 Training images for M53545
 
-    $ python preprocess.py --in_dir "/Volumes/My Passport/M535455 tiles/" --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/M535455_v9_all_annotations_aspect_ratio_corrected_wo_commons.csv --by_category --file_format %s.jpg
-    $ python preprocess.py --in_dir "/Volumes/My Passport/M535455 tiles/" --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/M535455_v9_all_annotations_aspect_ratio_corrected_wo_commons.csv --by_group --file_format %s.jpg
+    $ python preprocess.py --in_dir "/Volumes/My Passport/M535455 tiles/" --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/images_category --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/M535455_v10.csv --by_category --file_format %s.jpg
+    $ python preprocess.py --in_dir "/Volumes/My Passport/M535455 tiles/" --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M535455/images_group  --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/M535455_v10.csv --by_group --file_format %s.jpg
 
