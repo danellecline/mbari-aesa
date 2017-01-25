@@ -14,6 +14,7 @@ Reads in AESA annotation file and extracts training images organized by category
 
 import os
 import logging
+import math
 import pandas as pd
 import sys
 from collections import namedtuple
@@ -41,7 +42,7 @@ def process_command_line():
     args = parser.parse_args()
     return args
 
-def extract_annotation(raw_file, annotation, out_dir):
+def extract_annotation(raw_file, annotation):
     '''
      crop image into square tile centered on the annotation and pad by 75 pixels
     :param raw_file:  path to file
@@ -49,16 +50,15 @@ def extract_annotation(raw_file, annotation, out_dir):
     :param out_dir: directory to store cropped image
     :return:
     '''
-    if "Length" in annotation.mtype :
+    if "Length" in annotation.mtype and not math.isnan(annotation.measurement):
         crop_pixels = int(float(annotation.measurement)) + 75
     else:
         crop_pixels = 500
     w = crop_pixels / 2
 
-    if not os.path.exists(annotation.image_file):
-        os.system('convert "%s" -crop %dx%d+%d+%d +repage -quality 100%% "%s"' % (
-            raw_file, crop_pixels, crop_pixels, annotation.centerx - w, annotation.centery - w,annotation.image_file))
-        print 'Creating  %s ...' % annotation.image_file
+    os.system('convert "%s" -crop %dx%d+%d+%d +repage -quality 100%% "%s"' % (
+        raw_file, crop_pixels, crop_pixels, annotation.centerx - w, annotation.centery - w,annotation.image_file))
+    print 'Creating  %s ...' % annotation.image_file
 
 if __name__ == '__main__':
   args = process_command_line()
@@ -75,10 +75,11 @@ if __name__ == '__main__':
     for index, row in df.iterrows():
 
       try:
+        f = row['FileName'].replace('.','') # handle last . sometimes found Filename column
         if args.file_format:
-          filename = os.path.join(args.in_dir, args.file_format % int(row['FileName']))
+          filename = os.path.join(args.in_dir, args.file_format % f)
         else:
-          filename = os.path.join(args.in_dir, row['FileName'])
+          filename = os.path.join(args.in_dir, f)
 
         # get image height and width of raw tile
         height, width = util.get_dims(filename)
@@ -101,11 +102,16 @@ if __name__ == '__main__':
           util.ensure_dir(dir)
 
         image_file = '%s%06d.jpg' % (dir, index)
-        a = aesa_annotation(centerx=row['CentreX'], centery=row['CentreY'], category=row['Category'],
-                            measurement=row['Measurement'], mtype=row['Type'], index=index, image_file=image_file)
+        if not os.path.exists(image_file):
+          if args.by_category:
+            print 'Processing row %d filename %s annotation %s' % (index, filename, category)
+          elif args.by_group:
+            print 'Processing row %d filename %s annotation %s' % (index, filename, group)
 
-        print 'Processing row %d filename %s annotation %s' % (index, filename, category)
-        extract_annotation(filename, a, dir)
+          a = aesa_annotation(centerx=row['CentreX'], centery=row['CentreY'], category=row['Category'],
+                              measurement=row['Measurement'], mtype=row['Type'], index=index, image_file=image_file)
+
+          extract_annotation(filename, a)
 
       except Exception as ex:
           print ex
