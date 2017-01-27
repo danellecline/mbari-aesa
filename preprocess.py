@@ -66,7 +66,7 @@ if __name__ == '__main__':
   util.ensure_dir(args.out_dir)
   failed_file = open(os.path.join(args.out_dir, 'failed_crops.txt'), 'w')
 
-  aesa_annotation = namedtuple("Annotation", ["centerx", "centery", "category", "mtype", "measurement", "index", "image_file"])
+  aesa_annotation = namedtuple("Annotation", ["centerx", "centery", "mtype", "measurement", "index", "image_file"])
 
   try:
     print 'Parsing ' + args.annotation_file
@@ -108,14 +108,15 @@ if __name__ == '__main__':
           elif args.by_group:
             print 'Processing row %d filename %s annotation %s' % (index, filename, group)
 
-          a = aesa_annotation(centerx=row['CentreX'], centery=row['CentreY'], category=row['Category'],
-                              measurement=row['Measurement'], mtype=row['Type'], index=index, image_file=image_file)
+          a = aesa_annotation(centerx=row['CentreX'], centery=row['CentreY'],
+                              measurement=row['Measurement'], mtype=row['Type'],
+                              index=index, image_file=image_file)
 
           extract_annotation(filename, a)
 
       except Exception as ex:
           print ex
-          failed_file.write("Error cropping annotation row {0} filename {1} annotation {2}\n".format(index, filename, category))
+          failed_file.write("Error cropping annotation row {0} filename {1} \n".format(index, filename))
 
   except Exception as ex:
       print ex
