@@ -16,21 +16,21 @@ import os
 import subprocess
 import util
 import util_plot
-import pandas as pd
+import glob
 
-def batch_process(prefix, annotation_file):
+def batch_process(prefix, annotation_file, options):
   distortion_map = {
-                '--random_scale 20' : 'random_scale20',
-                '--rotate90' : 'rotate90',
-                '--random_scale 10' : 'random_scale10',
-                '--random_crop 10' : 'random_crop10',
-                '--random_brightness 10' : 'random_brightness10',
-                '--random_crop 20' : 'random_crop20',
-                '--random_brightness 20' : 'random_brightness20',
-                '--random_scale 50' : 'random_scale50',
-                '--random_crop 50' : 'random_crop50',
-                '--random_brightness 50' : 'random_brightness50'
-                }
+    '--random_scale 20': 'random_scale_20',
+    '--rotate90': 'rotate_90',
+    '--random_scale 10': 'random_scale_10',
+    '--random_crop 10': 'random_crop_10',
+    '--random_brightness 10': 'random_brightness_10',
+    '--random_crop 20': 'random_crop_20',
+    '--random_brightness 20': 'random_brightness_20',
+    '--random_scale 50': 'random_scale_50',
+    '--random_crop 50': 'random_crop_50',
+    '--random_brightness 50': 'random_brightness_50'
+  }
 
   # image directory where cropped images are located; generated either by group or by category
   image_category_dir = os.path.join(os.getcwd(),'data', prefix,'images_category','cropped_images')
@@ -55,7 +55,7 @@ def batch_process(prefix, annotation_file):
                 'category_sans_partials',
             }
 
-  model_map_multilabel = {
+  '''model_map_multilabel = {
               '--multilabel_category_group --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_category_group',
               '--multilabel_group_feedingtype --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_group_feedingtype',
               '--multilabel_category_group --exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_category_group_sans_unk',
@@ -64,65 +64,29 @@ def batch_process(prefix, annotation_file):
               '--multilabel_group_feedingtype --exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_group_feedingtype_sans_unk',
               '--multilabel_group_feedingtype --exclude_partial --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_group_feedingtype_sans_partial',
               '--multilabel_group_feedingtype --exclude_partial --exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_group_feedingtype_sans_partial_unk'
-  }
+  }'''
 
-  for option_model,model_sub_dir in model_map.iteritems():
+  '''for option_model,model_sub_dir in model_map.iteritems():
     for option_distort,distort_sub_dir in distortion_map.iteritems():
       out_dir = '{0}/{1}/{2}'.format(model_out_dir, model_sub_dir, distort_sub_dir)
       util.ensure_dir(out_dir)
-      #if not os.listdir(out_dir):
-      #  if not glob.glob(out_dir + '/model*'):
-      cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(all_options, option_model, option_distort, out_dir)
-      print(cmd)
-      subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
-      subproc.communicate()
+      if not os.listdir(out_dir):
+        if not glob.glob(out_dir + '/model*'):
+          all_options = ' --annotation_file %s --learning_rate .001' % annotation_file
+          cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(options, option_model, option_distort, out_dir)
+          print(cmd)
+          subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
+          subproc.communicate()'''
 
-  # Collect all of the raw metrics and put into a table and plot
-  for m in model_map.values():
-    csv_file = os.path.join(model_out_dir, m, 'metrics_all.csv')
-    plot_file = os.path.join(model_out_dir, m, 'metrics_all.png')
-    start = True
-    try:
-      with open(csv_file, 'w') as fout:
-          for v in sorted(distortion_map.values()):
-            metrics_file = os.path.join(model_out_dir, m, v, "metrics.csv")
-            with open(metrics_file) as fin:
-              if start:
-                fout.write(next(fin))
-                start = False
-              else:
-                next(fin)  # skip header
-              fout.write(next(fin))
-
-      df = pd.read_csv(csv_file, sep=',')
-      ax = df.plot(kind='bar', title="Metrics\n" + model_out_dir)
-      ax.set_xticklabels(df.Distortion, rotation=90)
-      fig = ax.get_figure()
-      fig.savefig(os.path.join(model_out_dir, plot_file), format='png', dpi=120);
-    except:
-      print 'Error aggregating metrics file/plot'
-
-  '''all_options = '--num_steps 30000 --testing_percentage 30 --annotation_file %s --learning_rate .001' % annotation_file
-
-  for option_model,model_sub_dir in model_map_multilabel.iteritems():
-    for option_distort,distort_sub_dir in distortion_map.iteritems():
-      out_dir = '{0}/{1}/{2}'.format(model_out_dir, model_sub_dir, distort_sub_dir)
-      util.ensure_dir(out_dir)
-      #if not os.listdir(out_dir):
-        #if not glob.glob(out_dir + '/model*'):
-      cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(all_options, option_model, option_distort, out_dir)
-      print(cmd)
-      subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
-      subproc.communicate()'''
+  util_plot.plot_metrics(model_out_dir, distortion_map)
 
 if __name__ == '__main__':
 
   annotation_file = os.path.join(os.getcwd(),'M56_Annotations_v10.csv')
-  all_options = '--num_steps 30000 --testing_percentage 30 --annotation_file %s --learning_rate .01' % annotation_file
-  batch_process(prefix="M56_75pad", annotation_file=annotation_file)
+  options = '--num_steps 30000 --testing_percentage 30 --learning_rate .01'
+  batch_process(prefix="M56_75pad", annotation_file=annotation_file, options=options)
 
-  annotation_file = os.path.join(os.getcwd(),'M535455_Annotations_v10.csv')
-  all_options = '--num_steps 30000 --testing_percentage 30 --annotation_file %s --learning_rate .01' % annotation_file
-  batch_process(prefix="M535455_75pad", annotation_file=annotation_file)
+  '''annotation_file = os.path.join(os.getcwd(),'M535455_Annotations_v10.csv')
+  batch_process(prefix="M535455_75pad", annotation_file=annotation_file, options=options)'''
 
 print 'Done'

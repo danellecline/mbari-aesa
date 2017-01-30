@@ -24,6 +24,7 @@ import struct
 import subprocess
 import tarfile
 import tensorflow as tf
+import pandas as pd
 import re
 
 from tensorflow.python.platform import gfile
@@ -34,6 +35,7 @@ import random
 from tensorflow.python.framework import tensor_shape
 import conf
 from tensorflow.python.framework import ops
+from sklearn.metrics import f1_score, roc_curve, auc, accuracy_score, precision_score, recall_score, average_precision_score
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 
@@ -232,6 +234,7 @@ def create_image_lists(df, exclude_unknown, exclude_partials, output_labels_file
         'training': training_images,
         'testing': testing_images,
         'validation': validation_images,
+        'num_training_images': len(training_images),
     }
 
   labels = json.dumps(list(labels_lt20))
@@ -683,3 +686,77 @@ def add_input_distortions(roate90, flip_left_right, random_crop, random_scale,
   brightened_image = tf.mul(flipped_image, brightness_value)
   distort_result = tf.expand_dims(brightened_image, 0, name='DistortResult')
   return jpeg_data, distort_result
+
+
+def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_lists):
+
+  sess = tf.Session()
+  with sess.as_default():
+    results_y_test = {}
+    results_y_score = {}
+    df = pd.DataFrame(columns=['actual','predicted','num'])
+
+    predictions = classifier.predict(x=bottlenecks, as_iterable=True)
+
+    for key in all_label_names:
+      results_y_test[key] = []
+      results_y_score[key] = []
+
+    y_true = np.empty(test_ground_truth.shape[0])
+    y_pred = np.empty(test_ground_truth.shape[0])
+
+    # calculate the scores for predictions as needed for scipy functions
+    for j, p in enumerate(predictions):
+      print("---------")
+      predicted = int(p['index'])
+      actual = int(np.argmax(test_ground_truth[j]))
+      y_true[j] = actual
+      y_pred[j] = predicted
+      key = all_label_names[actual]
+      if actual == predicted:
+        results_y_test[key].append(1)
+      else:
+        results_y_test[key].append(0)
+      results_y_score[key].append(p['class_vector'][predicted])
+
+      print("%i is predicted as %s actual class %s %i %i" % (j, all_label_names[predicted], all_label_names[actual], predicted, actual))
+      if df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted])].empty:
+        df = df.append([{'actual': all_label_names[actual], 'predicted': all_label_names[predicted], 'num': 0}])
+      df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted]), 'num'] += 1
+
+    accuracy_all = accuracy_score(y_true, y_pred)
+    precision_all = precision_score(y_true, y_pred)
+    f1_all = f1_score(y_true, y_pred)
+
+    with open(os.path.join(args.model_dir,'metrics.csv'), "w") as f:
+      f.write("Distortion,Accuracy,Precision,F1\n")
+      if args.rotate90:
+        distortion = "rotate_90"
+      if args.random_crop:
+        distortion = "{0}_{1:2d}".format("random_crop", int(args.random_crop))
+      if args.random_scale:
+        distortion = "{0}_{1:2d}".format("random_scale", int(args.random_scale))
+      if args.random_brightness:
+        distortion = "{0}_{1:2d}".format("random_brightness", int(args.random_brightness))
+      f.write("{0},{1:1.5f},{2:1.5f},{3:1.5f}\n".format(distortion, accuracy_all, precision_all, f1_all))
+
+    ind = np.arange(len(all_label_names))  # the x locations for the classes
+    precision = precision_score(y_true, y_pred, labels=ind, average=None)
+    recall = recall_score(y_true, y_pred, labels=ind, average=None)
+    f1 = f1_score(y_true, y_pred, labels=ind, average=None)
+
+    with open(os.path.join(args.model_dir,'metrics_by_class.csv'), "w") as f:
+      f.write("Distortion,Class,NumTrainingImages,Accuracy,Precision,F1\n")
+      for i in range(len(recall)):
+        class_name = all_label_names[i]
+        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
+
+    # save CM as a csv file
+    with open(os.path.join(args.model_dir,'metrics_cm.csv'), "w") as f:
+      f.write(','.join(all_label_names) + '\n')
+      for i in range(len(all_label_names)):
+        class_name = all_label_names[i]
+        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
+
+    df.to_csv(os.path.join(args.model_dir,'metrics_cm.csv'), float_format='%1.5f')
+    print('Done')

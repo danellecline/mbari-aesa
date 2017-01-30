@@ -352,11 +352,11 @@ if __name__ == '__main__':
       with gfile.FastGFile(output_labels_file, 'w') as f:
         f.write(output_labels)
 
-    print("\nGetting metrics...")
     # these plots don't apply to multilabels
     if not args.multilabel_category_group and not args.multilabel_group_feedingtype:
-      util_plot.plot_metrics(args, df, classifier, test_bottlenecks.astype(np.float32), test_ground_truth,
-                                    output_labels_file, output_labels_file_lt20)
+      print("\nSaving metrics...")
+      util.save_metrics(args, classifier, test_bottlenecks.astype(np.float32), all_label_names, test_ground_truth,
+                        image_lists)
 
     for name in image_lists.iterkeys():
         dir = image_lists[name]['dir']
