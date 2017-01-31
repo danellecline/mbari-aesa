@@ -78,7 +78,8 @@ def batch_process(prefix, annotation_file, options):
           subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
           subproc.communicate()'''
 
-  util_plot.plot_metrics(model_out_dir, distortion_map)
+  util_plot.plot_metrics(model_out_dir, 'group', distortion_map)
+  util_plot.plot_metrics(model_out_dir, 'category', distortion_map)
 
 if __name__ == '__main__':
 
@@ -86,7 +87,7 @@ if __name__ == '__main__':
   options = '--num_steps 30000 --testing_percentage 30 --learning_rate .01'
   batch_process(prefix="M56_75pad", annotation_file=annotation_file, options=options)
 
-  '''annotation_file = os.path.join(os.getcwd(),'M535455_Annotations_v10.csv')
-  batch_process(prefix="M535455_75pad", annotation_file=annotation_file, options=options)'''
+  annotation_file = os.path.join(os.getcwd(),'M535455_Annotations_v10.csv')
+  batch_process(prefix="M535455_75pad", annotation_file=annotation_file, options=options)
 
 print 'Done'
