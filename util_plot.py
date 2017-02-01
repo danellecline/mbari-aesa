@@ -26,6 +26,7 @@ import fnmatch
 import tensorflow as tf
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc
 import matplotlib.gridspec as gridspec
 import pandas as pd
 
@@ -59,7 +60,7 @@ def find_matches(model_out_dir, glob_filter, filename):
 
   return matches
 
-def plot_metrics(model_out_dir, glob_filter, distortion_map):
+def plot_metrics(model_out_dir, glob_filter):
 
   try:
 
@@ -84,9 +85,9 @@ def plot_metrics(model_out_dir, glob_filter, distortion_map):
     df = pd.read_csv(csv_file, sep=',')
     ax = df.plot(kind='bar', title="Metrics\n" + model_out_dir, figsize=(12,10))
     ax.set_xticklabels(df.Distortion, rotation=90)
-    fig = ax.get_figure()
     plt.tight_layout()
-    fig.savefig(os.path.join(model_out_dir, os.path.join(model_out_dir, glob_filter + '_metrics_all.png')), format='png', dpi=120);
+    plt.savefig(os.path.join(model_out_dir, os.path.join(model_out_dir, glob_filter + '_metrics_all.png')), format='png', dpi=120);
+    plt.close('all')
 
     # combine all the class-level data into a csv file
     matches = find_matches(model_out_dir, glob_filter, 'metrics_by_class.csv')
@@ -103,22 +104,89 @@ def plot_metrics(model_out_dir, glob_filter, distortion_map):
             for line in fin:
                 fout.write(line)
 
-    # plot each distortion in a combo bar/line plot
+    # plot each distortion accuracy/prediction plots in a combo bar/line plot
     df_metrics = pd.read_csv(csv_file, sep=',')
     distortions = list(set(df_metrics.Distortion))
     for v in sorted(distortions):
       df = df_metrics[df_metrics['Distortion'] == v]
       if not df.empty:
         df = df.sort(['Accuracy'], ascending=False)
-        ax = df[['Accuracy','Precision']].plot(kind='bar', title="Metrics by Class" + v + "\n" + model_out_dir, figsize=(12,10))
+        ax = df[['Accuracy','Precision']].plot(kind='bar', title="Metrics by Class " + v + "\n" + model_out_dir, figsize=(12,10))
         ax2 = ax.twinx()
         ax2.plot(ax.get_xticks(), df[['NumTrainingImages']].values, linestyle='-', marker='o', linewidth=2.0)
         ax.set_xticklabels(df_metrics.Class, rotation=90)
         ax.set(xlabel='Class')
         ax2.set(ylabel='Total Training Example Images')
         plt.tight_layout()
-        fig = ax.get_figure()
-        fig.savefig(os.path.join(model_out_dir, glob_filter + '_metrics_all_by_class_' + v + '.png'), format='png', dpi=120);
+        plt.tight_layout()
+        plt.savefig(os.path.join(model_out_dir, glob_filter + '_metrics_all_by_class_' + v + '.png'), format='png', dpi=120);
+        plt.close('all')
+
+    # plot each distortion ROC curve
+    matches = find_matches(model_out_dir, glob_filter, 'metrics_roc.pkl')
+    max_per_plot = 15
+    for cm_file in matches:
+      df = pd.read_pickle(cm_file)
+
+      # Compute ROC curve and ROC area for each class
+      if not df.empty:
+        fpr = dict()
+        tpr = dict()
+        roc_auc = dict()
+        y_test = np.vstack(df['y_test'].values)
+        y_score = np.vstack(df['y_score'].values)
+        labels = df['labels'].values[0] # only need the first row here
+        num_classes = y_test.shape[1]
+        distortion = cm_file.split('/')[-2]
+        if num_classes >= max_per_plot:
+          num_plots = int(math.ceil(float(num_classes) / float(num_classes)))
+        else:
+          num_plots = 1
+
+        # stack the grids vertically if more than one plot
+        if num_plots > 2:
+          fig = plt.figure(figsize=(11, 17));
+        else:
+          fig = plt.figure(figsize=(12, 10));
+
+        a = 0; j = 0;
+        gs = gridspec.GridSpec(num_plots, 1)
+
+        # Compute micro-average ROC curve and ROC area
+        fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_score.ravel())
+        roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+
+        ax = fig.add_subplot(gs[a])
+        ax.plot(fpr["micro"], tpr["micro"],
+                 label='micro-average ROC curve (area = {0:0.2f})'
+                       ''.format(roc_auc["micro"]),
+                 color='deeppink', linestyle=':', linewidth=4)
+
+        for i in range(num_classes):
+          if max_per_plot % (i + max_per_plot) == 0:
+            ax = fig.add_subplot(gs[a])
+            plt.plot([0, 1], [0, 1], color='navy', lw=i, linestyle='--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title('Receiver Operating Characteristic (ROC) ' + v + '\n' + os.path(cm_file))
+            a += 1
+
+          fpr[i], tpr[i], _ = roc_curve(y_test[:, i], y_score[:, i])
+          roc_auc[i] = auc(fpr[i], tpr[i])
+
+          color = colors[i % len(colors)]
+          style = linestyles[i % len(linestyles)]
+          marker = markers[i % len(markers)]
+          ax.plot(fpr[i], tpr[i], linestyle=style, marker=marker, color=color, markersize=5,
+                  label='class {0} (area = {1:0.2f})'.format(labels[i], roc_auc[i]));
+
+          ax.legend(loc='best')
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(model_out_dir, glob_filter + '_roc_all_by_class_' + distortion + '.png'), format='png',
+                  dpi=120);
         plt.close('all')
 
     # confusion matrix plot
@@ -129,6 +197,7 @@ def plot_metrics(model_out_dir, glob_filter, distortion_map):
       if not df.empty:
         distortion = cm_file.split('/')[-2]
         df = pd.pivot_table(df,columns='predicted', values='num', index='actual')
+        # reindex to align the row/columns as needed for a confusion matrix plot
         df.fillna(0, inplace=True)
         index = df.index.union(df.columns)
         df = df.reindex(index=index, columns=index, fill_value=0)
@@ -141,5 +210,7 @@ def plot_metrics(model_out_dir, glob_filter, distortion_map):
         plt.savefig(os.path.join(model_out_dir, glob_filter + '_metrics_cm_by_class_' + distortion + '.png'), format='png', dpi=120);
         plt.close('all')
 
+
+    plt.close('all')
   except:
     print 'Error aggregating/plotting metrics'

@@ -695,6 +695,7 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
     results_y_test = {}
     results_y_score = {}
     df = pd.DataFrame(columns=['actual','predicted','num'])
+    df_roc = pd.DataFrame(columns=['y_test', 'y_score', 'labels'], index=range(test_ground_truth.shape[0]))
 
     predictions = classifier.predict(x=bottlenecks, as_iterable=True)
 
@@ -712,12 +713,7 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
       actual = int(np.argmax(test_ground_truth[j]))
       y_true[j] = actual
       y_pred[j] = predicted
-      key = all_label_names[actual]
-      if actual == predicted:
-        results_y_test[key].append(1)
-      else:
-        results_y_test[key].append(0)
-      results_y_score[key].append(p['class_vector'][predicted])
+      df_roc.loc[j] = {'y_test': test_ground_truth[j], 'y_score': p['class_vector'], 'labels': all_label_names}
 
       print("%i is predicted as %s actual class %s %i %i" % (j, all_label_names[predicted], all_label_names[actual], predicted, actual))
       if df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted])].empty:
@@ -727,6 +723,8 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
     accuracy_all = accuracy_score(y_true, y_pred)
     precision_all = precision_score(y_true, y_pred)
     f1_all = f1_score(y_true, y_pred)
+
+    df_roc.to_pickle(os.path.join(args.model_dir, 'metrics_roc.pkl'))
 
     with open(os.path.join(args.model_dir,'metrics.csv'), "w") as f:
       f.write("Distortion,Accuracy,Precision,F1\n")
