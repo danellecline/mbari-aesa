@@ -65,7 +65,7 @@ def plot_metrics(model_out_dir, glob_filter):
   try:
 
     # find all matches
-    csv_file = os.path.join(model_out_dir, glob_filter + '_metrics_all.csv')
+    csv_file = os.path.join(model_out_dir, glob_filter + '_acc_prec_all.csv')
     matches = find_matches(model_out_dir, glob_filter, 'metrics.csv')
 
     # combine all the high-level data into a csv file
@@ -85,15 +85,16 @@ def plot_metrics(model_out_dir, glob_filter):
     df = pd.read_csv(csv_file, sep=',')
     ax = df.plot(kind='bar', title="Metrics\n" + model_out_dir, figsize=(12,10))
     ax.set_xticklabels(df.Distortion, rotation=90)
+    ax.set_ylim([0.0, 1.05])
     for p in ax.patches:
       ax.annotate(str(np.round(p.get_height(), decimals=4)), (p.get_x() * 1.005, p.get_height() * 1.005),fontsize=6)
     plt.tight_layout()
-    plt.savefig(os.path.join(model_out_dir, os.path.join(model_out_dir, glob_filter + '_metrics_all.png')), format='png', dpi=120);
+    plt.savefig(os.path.join(model_out_dir, os.path.join(model_out_dir, glob_filter + '_acc_prec_all.png')), format='png', dpi=120);
     plt.close('all')
 
     # combine all the class-level data into a csv file
     matches = find_matches(model_out_dir, glob_filter, 'metrics_by_class.csv')
-    csv_file = os.path.join(model_out_dir, glob_filter + '_metrics_all_by_class.csv')
+    csv_file = os.path.join(model_out_dir, glob_filter + '_acc_prec_by_class.csv')
     header_out = False
     with open(csv_file, 'w') as fout:
       for metrics_file in sorted(matches):
@@ -117,6 +118,7 @@ def plot_metrics(model_out_dir, glob_filter):
         ax2 = ax.twinx()
         ax2.plot(ax.get_xticks(), df[['NumTrainingImages']].values, linestyle='-', marker='o', linewidth=2.0)
         ax.set(xlabel='Class')
+        ax.set_ylim([0.0, 1.05])
         ax2.set(ylabel='Total Training Example Images')
         ax2.set_yscale('log')
         ax.set_xticklabels(df.Class, rotation=90)
@@ -125,7 +127,7 @@ def plot_metrics(model_out_dir, glob_filter):
           for p in ax.patches:
             ax.annotate(str(np.round(p.get_height(),decimals=2)), (p.get_x() * 1.005, p.get_height() * 1.005),fontsize=6)
         plt.tight_layout()
-        plt.savefig(os.path.join(model_out_dir, glob_filter + '_metrics_all_by_class_' + v + '.png'), format='png', dpi=120);
+        plt.savefig(os.path.join(model_out_dir, glob_filter + '_acc_prec_by_class_' + v + '.png'), format='png', dpi=120);
         plt.close('all')
 
     # plot each distortion ROC curve
@@ -151,12 +153,16 @@ def plot_metrics(model_out_dir, glob_filter):
 
         # stack the grids vertically if more than one plot
         if num_plots > 2:
-          fig = plt.figure(figsize=(6, 20));
+          fig = plt.figure(figsize=(22, 16));
         else:
           fig = plt.figure(figsize=(12, 10));
 
         a = 0; j = 0;
-        gs = gridspec.GridSpec(num_plots, 1)
+        k = int(math.ceil(float(num_plots) / float(2)))
+        if num_plots > 5:
+          gs = gridspec.GridSpec(2,k)
+        else:
+          gs = gridspec.GridSpec(num_plots,1)
 
         # Compute micro-average ROC curve and ROC area
         fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_score.ravel())
@@ -206,7 +212,7 @@ def plot_metrics(model_out_dir, glob_filter):
         index = df.index.union(df.columns)
         df = df.reindex(index=index, columns=index, fill_value=0)
         fig, ax = plt.subplots(figsize=(12, 10));
-        ax.set_title('Confusion Matrix ' + v + '\n' + os.path(cm_file))
+        ax.set_title('Confusion Matrix ' + distortion)
         sns.heatmap(df, cmap=cmap, vmax=30, annot=False, square=True, linewidths=.5, cbar_kws={"shrink": .5}, ax=ax)
         plt.xticks(rotation=90)
         plt.yticks(rotation=360)

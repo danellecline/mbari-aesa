@@ -18,10 +18,9 @@ import util
 import util_plot
 import glob
 
-def batch_process(prefix, annotation_file, options):
+def batch_process(prefix, annotation_file, options, exclude_group):
   distortion_map = {
     '--random_scale 20': 'random_scale_20',
-    '--rotate90': 'rotate_90',
     '--random_scale 10': 'random_scale_10',
     '--random_crop 10': 'random_crop_10',
     '--random_brightness 10': 'random_brightness_10',
@@ -66,28 +65,37 @@ def batch_process(prefix, annotation_file, options):
               '--multilabel_group_feedingtype --exclude_partial --exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_group_feedingtype_sans_partial_unk'
   }'''
 
-  '''for option_model,model_sub_dir in model_map.iteritems():
+  for option_model,model_sub_dir in model_map.iteritems():
     for option_distort,distort_sub_dir in distortion_map.iteritems():
       out_dir = '{0}/{1}/{2}'.format(model_out_dir, model_sub_dir, distort_sub_dir)
       util.ensure_dir(out_dir)
-      if not os.listdir(out_dir):
-        if not glob.glob(out_dir + '/model*'):
-          all_options = ' --annotation_file %s --learning_rate .001' % annotation_file
-          cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(options, option_model, option_distort, out_dir)
-          print(cmd)
-          subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
-          subproc.communicate()'''
+      if not exclude_group or exclude_group and 'group' not in option_model:
+          if not glob.glob(out_dir + '/model*'):
+            all_options = ' --annotation_file %s --learning_rate .01' % annotation_file
+            cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(all_options, option_model, option_distort, out_dir)
+            print(cmd)
+            subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
+            subproc.communicate()
 
-  util_plot.plot_metrics(model_out_dir, 'group', distortion_map)
-  util_plot.plot_metrics(model_out_dir, 'category', distortion_map)
+  if exclude_group:
+    util_plot.plot_metrics(model_out_dir, 'category_sans_unk')
+    util_plot.plot_metrics(model_out_dir, 'category_sans_partials')
+  else:
+    util_plot.plot_metrics(model_out_dir, 'group_sans_unk')
+    util_plot.plot_metrics(model_out_dir, 'group_sans_partials')
+    util_plot.plot_metrics(model_out_dir, 'category_sans_unk')
+    util_plot.plot_metrics(model_out_dir, 'category_sans_partials')
 
 if __name__ == '__main__':
 
   annotation_file = os.path.join(os.getcwd(),'M56_Annotations_v10.csv')
   options = '--num_steps 30000 --testing_percentage 30 --learning_rate .01'
-  batch_process(prefix="M56_75pad", annotation_file=annotation_file, options=options)
+  batch_process(prefix="M56_75pad", annotation_file=annotation_file, options=options, exclude_group=False)
 
   annotation_file = os.path.join(os.getcwd(),'M535455_Annotations_v10.csv')
-  batch_process(prefix="M535455_75pad", annotation_file=annotation_file, options=options)
+  batch_process(prefix="M535455_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
+
+  annotation_file = os.path.join(os.getcwd(),'M535455_Annotations_v10.csv')
+  batch_process(prefix="JC062_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
 
 print 'Done'
