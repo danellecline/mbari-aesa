@@ -78,7 +78,6 @@ def process_command_line():
     # Controls the distortions used during training.
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--flip_left_right', action='store_true', default=False, help="Whether to randomly flip the training images horizontally.")
-    group.add_argument('--rotate90', action='store_true', default=False, help="Whether to randomly rotate the training images 90 degrees.")
     parser.add_argument('--random_crop', type=int, default=0, help="""A percentage determining how much of a margin to randomly crop off the training images.""")
     parser.add_argument('--random_scale', type=int, default=0, help="""A percentage determining how much to randomly scale up the size of the training images by.""")
     parser.add_argument('--random_brightness', type=int, default=0, help="""A percentage determining how much to randomly multiply the training image input pixels up or down by.""")
@@ -182,7 +181,7 @@ def add_images(sess, paths, model_dir):
   image_tensors = np.zeros((num_images, conf.MODEL_INPUT_WIDTH, conf.MODEL_INPUT_WIDTH, 3), dtype=np.float32)
 
   # Add an Op to initialize all variables.
-  init_op = tf.initialize_all_variables()
+  init_op = tf.global_variables_initializer()
 
   with sess.as_default():
 
@@ -195,7 +194,7 @@ def add_images(sess, paths, model_dir):
     j = 0
 
     # Write summary
-    writer = tf.train.SummaryWriter(model_dir)
+    writer = tf.summary.FileWriter(model_dir)
 
     if num_images > 0:
       for count, name in enumerate(paths, 1):
@@ -206,7 +205,7 @@ def add_images(sess, paths, model_dir):
           j += 1
 
       # Add image summary
-      summary_op = tf.image_summary("plot", image_tensors, num_images )
+      summary_op = tf.summary.image("plot", image_tensors, num_images )
       summary = sess.run(summary_op)
       writer.add_summary(summary)
 
@@ -266,15 +265,14 @@ if __name__ == '__main__':
       exit(-1)
 
     # See if the command-line flags mean we're applying any distortions.
-    do_distort_images =  (args.flip_left_right or args.rotate90
-                          or (args.random_crop != 0) or (args.random_scale != 0) or
+    do_distort_images =  (args.flip_left_right or (args.random_crop != 0) or (args.random_scale != 0) or
                           (args.random_brightness != 0))
     sess = tf.Session()
 
     if do_distort_images:
       # We will be applying distortions, so setup the operations we'll need.
       distorted_jpeg_data_tensor, distorted_image_tensor = util.add_input_distortions(
-          args.rotate90, args.flip_left_right, args.random_crop, args.random_scale,
+          args.flip_left_right, args.random_crop, args.random_scale,
           args.random_brightness)
     else:
       # We'll make sure we've calculated the 'bottleneck' image summaries and
@@ -340,9 +338,9 @@ if __name__ == '__main__':
     print("evaluating....")
     if args.multilabel_category_group or args.multilabel_group_feedingtype:
       print("Evaluating cached bottlenecks")
-      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model_multilabel.METRICS)
+      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth)
     else:
-      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth, metrics=transfer_model.METRICS)
+      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth)
 
     # write the output labels file if it doesn't already exist
     if gfile.Exists(output_labels_file):

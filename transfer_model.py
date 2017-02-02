@@ -65,16 +65,6 @@ def make_model_fn(class_count, final_tensor_name, learning_rate):
 
   return _make_model
 
-METRICS = {
-    'loss': metric_spec.MetricSpec(
-        metric_fn=metric_ops.streaming_mean,
-        prediction_key='loss'
-    ),
-    'accuracy': metric_spec.MetricSpec(
-        metric_fn=metric_ops.streaming_mean,
-        prediction_key='accuracy'
-    )
-}
 
 def add_final_training_ops(learning_rate,
     class_count, mode, final_tensor_name,
@@ -120,18 +110,18 @@ def add_final_training_ops(learning_rate,
       variable_summaries(layer_biases, layer_name + '/biases')
     with tf.name_scope('Wx_plus_b'):
       logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
-      tf.histogram_summary(layer_name + '/pre_activations', logits)
+      tf.summary.histogram(layer_name + '/pre_activations', logits)
 
   final_tensor = tf.nn.softmax(logits, name=final_tensor_name)
-  tf.histogram_summary(final_tensor_name + '/activations', final_tensor)
+  tf.summary.histogram(final_tensor_name + '/activations', final_tensor)
 
   if mode in [ModeKeys.EVAL, ModeKeys.TRAIN]:
     with tf.name_scope('cross_entropy'):
       cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
-          logits, ground_truth_input)
+          logits=logits, labels=ground_truth_input)
       with tf.name_scope('total'):
         cross_entropy_mean = tf.reduce_mean(cross_entropy)
-      tf.scalar_summary('cross entropy', cross_entropy_mean)
+      tf.summary.scalar('cross entropy', cross_entropy_mean)
 
     with tf.name_scope('train'):
       train_step = tf.train.GradientDescentOptimizer(
@@ -159,7 +149,7 @@ def add_evaluation_step(result_tensor, ground_truth_tensor):
                                     tf.argmax(ground_truth_tensor, 1))
     with tf.name_scope('accuracy'):
       evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-    tf.scalar_summary('accuracy', evaluation_step)
+    tf.summary.scalar('accuracy', evaluation_step)
   return evaluation_step
 
 
@@ -167,11 +157,11 @@ def variable_summaries(var, name):
   """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
   with tf.name_scope('summaries'):
     mean = tf.reduce_mean(var)
-    tf.scalar_summary('mean/' + name, mean)
+    tf.summary.scalar('mean/' + name, mean)
     with tf.name_scope('stddev'):
       stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
-    tf.scalar_summary('stddev/' + name, stddev)
-    tf.scalar_summary('max/' + name, tf.reduce_max(var))
-    tf.scalar_summary('min/' + name, tf.reduce_min(var))
-    tf.histogram_summary(name, var)
+    tf.summary.scalar('stddev/' + name, stddev)
+    tf.summary.scalar('max/' + name, tf.reduce_max(var))
+    tf.summary.scalar('min/' + name, tf.reduce_min(var))
+    tf.summary.histogram(name, var)
 

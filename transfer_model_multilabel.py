@@ -68,21 +68,6 @@ def make_model_fn(class_count, final_tensor_name, learning_rate):
 
   return _make_model
 
-METRICS = {
-    'loss': metric_spec.MetricSpec(
-        metric_fn=metric_ops.streaming_mean,
-        prediction_key='loss'
-    ),
-    'accuracy_mean': metric_spec.MetricSpec(
-        metric_fn=metric_ops.streaming_mean,
-        prediction_key='accuracy_mean'
-    ),
-    'accuracy_all': metric_spec.MetricSpec(
-        metric_fn=metric_ops.streaming_mean,
-        prediction_key='accuracy_all'
-    )
-}
-
 def add_final_training_ops(learning_rate,
     class_count, mode, final_tensor_name,
     bottleneck_input, ground_truth_input):

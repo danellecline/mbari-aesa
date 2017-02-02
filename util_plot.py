@@ -13,9 +13,9 @@ Utility class for miscellaneous learning plot functions
 @license: GPL
 '''
 
-# uncomment this if you want to display plots, e.g. use the plt.show() function
+# comment this if you want to display plots, e.g. use the plt.show() function
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 
 import json
 import io
@@ -85,6 +85,8 @@ def plot_metrics(model_out_dir, glob_filter):
     df = pd.read_csv(csv_file, sep=',')
     ax = df.plot(kind='bar', title="Metrics\n" + model_out_dir, figsize=(12,10))
     ax.set_xticklabels(df.Distortion, rotation=90)
+    for p in ax.patches:
+      ax.annotate(str(np.round(p.get_height(), decimals=4)), (p.get_x() * 1.005, p.get_height() * 1.005),fontsize=6)
     plt.tight_layout()
     plt.savefig(os.path.join(model_out_dir, os.path.join(model_out_dir, glob_filter + '_metrics_all.png')), format='png', dpi=120);
     plt.close('all')
@@ -110,14 +112,18 @@ def plot_metrics(model_out_dir, glob_filter):
     for v in sorted(distortions):
       df = df_metrics[df_metrics['Distortion'] == v]
       if not df.empty:
-        df = df.sort(['Accuracy'], ascending=False)
+        df = df.sort_values(by='Accuracy', ascending=False)
         ax = df[['Accuracy','Precision']].plot(kind='bar', title="Metrics by Class " + v + "\n" + model_out_dir, figsize=(12,10))
         ax2 = ax.twinx()
         ax2.plot(ax.get_xticks(), df[['NumTrainingImages']].values, linestyle='-', marker='o', linewidth=2.0)
-        ax.set_xticklabels(df_metrics.Class, rotation=90)
         ax.set(xlabel='Class')
         ax2.set(ylabel='Total Training Example Images')
-        plt.tight_layout()
+        ax2.set_yscale('log')
+        ax.set_xticklabels(df.Class, rotation=90)
+        # don't plot the bar values if too many categories - this is cluttered
+        if len(ax.patches) < 20:
+          for p in ax.patches:
+            ax.annotate(str(np.round(p.get_height(),decimals=2)), (p.get_x() * 1.005, p.get_height() * 1.005),fontsize=6)
         plt.tight_layout()
         plt.savefig(os.path.join(model_out_dir, glob_filter + '_metrics_all_by_class_' + v + '.png'), format='png', dpi=120);
         plt.close('all')
@@ -139,13 +145,13 @@ def plot_metrics(model_out_dir, glob_filter):
         num_classes = y_test.shape[1]
         distortion = cm_file.split('/')[-2]
         if num_classes >= max_per_plot:
-          num_plots = int(math.ceil(float(num_classes) / float(num_classes)))
+          num_plots = int(math.ceil(float(num_classes) / float(max_per_plot)))
         else:
           num_plots = 1
 
         # stack the grids vertically if more than one plot
         if num_plots > 2:
-          fig = plt.figure(figsize=(11, 17));
+          fig = plt.figure(figsize=(6, 20));
         else:
           fig = plt.figure(figsize=(12, 10));
 
@@ -156,21 +162,19 @@ def plot_metrics(model_out_dir, glob_filter):
         fpr["micro"], tpr["micro"], _ = roc_curve(y_test.ravel(), y_score.ravel())
         roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
 
-        ax = fig.add_subplot(gs[a])
-        ax.plot(fpr["micro"], tpr["micro"],
+        for i in range(num_classes):
+          if (i + max_per_plot) % max_per_plot == 0:
+            ax = fig.add_subplot(gs[a])
+            ax.set_xlim([0.0, 1.0])
+            ax.set_ylim([0.0, 1.05])
+            if a == 0:
+              ax.set_xlabel('False Positive Rate')
+              ax.set_ylabel('True Positive Rate')
+              ax.set_title('Receiver Operating Characteristic (ROC) ' + distortion)
+            ax.plot(fpr["micro"], tpr["micro"],
                  label='micro-average ROC curve (area = {0:0.2f})'
                        ''.format(roc_auc["micro"]),
                  color='deeppink', linestyle=':', linewidth=4)
-
-        for i in range(num_classes):
-          if max_per_plot % (i + max_per_plot) == 0:
-            ax = fig.add_subplot(gs[a])
-            plt.plot([0, 1], [0, 1], color='navy', lw=i, linestyle='--')
-            plt.xlim([0.0, 1.0])
-            plt.ylim([0.0, 1.05])
-            plt.xlabel('False Positive Rate')
-            plt.ylabel('True Positive Rate')
-            plt.title('Receiver Operating Characteristic (ROC) ' + v + '\n' + os.path(cm_file))
             a += 1
 
           fpr[i], tpr[i], _ = roc_curve(y_test[:, i], y_score[:, i])
@@ -182,7 +186,7 @@ def plot_metrics(model_out_dir, glob_filter):
           ax.plot(fpr[i], tpr[i], linestyle=style, marker=marker, color=color, markersize=5,
                   label='class {0} (area = {1:0.2f})'.format(labels[i], roc_auc[i]));
 
-          ax.legend(loc='best')
+          ax.legend(loc=0, fontsize='x-small')
 
         plt.tight_layout()
         plt.savefig(os.path.join(model_out_dir, glob_filter + '_roc_all_by_class_' + distortion + '.png'), format='png',

@@ -594,8 +594,7 @@ def get_random_distorted_bottlenecks(
   return bottlenecks, ground_truths
 
 
-def add_input_distortions(roate90, flip_left_right, random_crop, random_scale,
-                          random_brightness):
+def add_input_distortions(flip_left_right, random_crop, random_scale, random_brightness):
   """Creates the operations to apply the specified distortions.
 
   During training it can help to improve the results if we run the images
@@ -637,7 +636,6 @@ def add_input_distortions(roate90, flip_left_right, random_crop, random_scale,
   a random range between half the width and height and full size.
 
   Args:
-    rotate90: Boolean whether to randomly rotate images in 45 degree increments.
     flip_left_right: Boolean whether to randomly mirror images horizontally.
     random_crop: Integer percentage setting the total margin used around the
     crop box.
@@ -659,10 +657,10 @@ def add_input_distortions(roate90, flip_left_right, random_crop, random_scale,
   resize_scale_value = tf.random_uniform(tensor_shape.scalar(),
                                          minval=1.0,
                                          maxval=resize_scale)
-  scale_value = tf.mul(margin_scale_value, resize_scale_value)
-  precrop_width = tf.mul(scale_value, conf.MODEL_INPUT_WIDTH)
-  precrop_height = tf.mul(scale_value, conf.MODEL_INPUT_HEIGHT)
-  precrop_shape = tf.pack([precrop_height, precrop_width])
+  scale_value = tf.multiply(margin_scale_value, resize_scale_value)
+  precrop_width = tf.multiply(scale_value, conf.MODEL_INPUT_WIDTH)
+  precrop_height = tf.multiply(scale_value, conf.MODEL_INPUT_HEIGHT)
+  precrop_shape = tf.stack([precrop_height, precrop_width])
   precrop_shape_as_int = tf.cast(precrop_shape, dtype=tf.int32)
   precropped_image = tf.image.resize_bilinear(decoded_image_4d,
                                               precrop_shape_as_int)
@@ -672,10 +670,6 @@ def add_input_distortions(roate90, flip_left_right, random_crop, random_scale,
                                   conf.MODEL_INPUT_DEPTH])
   if flip_left_right:
     flipped_image = tf.image.random_flip_left_right(cropped_image)
-  elif roate90:      
-    image = ops.convert_to_tensor(cropped_image, name='image')
-    tf.image._Check3DImage(image, require_static=False) 
-    flipped_image = tf.image.rot90(image, k=1, name=None) 
   else:
     flipped_image = cropped_image
   brightness_min = 1.0 - (random_brightness / 100.0)
@@ -683,7 +677,7 @@ def add_input_distortions(roate90, flip_left_right, random_crop, random_scale,
   brightness_value = tf.random_uniform(tensor_shape.scalar(),
                                        minval=brightness_min,
                                        maxval=brightness_max)
-  brightened_image = tf.mul(flipped_image, brightness_value)
+  brightened_image = tf.multiply(flipped_image, brightness_value)
   distort_result = tf.expand_dims(brightened_image, 0, name='DistortResult')
   return jpeg_data, distort_result
 
@@ -728,8 +722,6 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
 
     with open(os.path.join(args.model_dir,'metrics.csv'), "w") as f:
       f.write("Distortion,Accuracy,Precision,F1\n")
-      if args.rotate90:
-        distortion = "rotate_90"
       if args.random_crop:
         distortion = "{0}_{1:2d}".format("random_crop", int(args.random_crop))
       if args.random_scale:
