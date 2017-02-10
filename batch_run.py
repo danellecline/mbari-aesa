@@ -91,11 +91,8 @@ if __name__ == '__main__':
   annotation_file = os.path.join(os.getcwd(),'M56_Annotations_v10.csv')
   options = '--num_steps 30000 --testing_percentage 30 --learning_rate .01'
   batch_process(prefix="M56_75pad", annotation_file=annotation_file, options=options, exclude_group=False)
-
-  annotation_file = os.path.join(os.getcwd(),'M535455_Annotations_v10.csv')
   batch_process(prefix="M535455_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
-
-  annotation_file = os.path.join(os.getcwd(),'M535455_Annotations_v10.csv')
   batch_process(prefix="JC062_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
+  batch_process(prefix="JC062_M535455_M56_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
 
 print 'Done'
