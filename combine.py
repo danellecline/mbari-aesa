@@ -20,7 +20,7 @@ for prefix in prefix_dirs:
       class_dirname = root.split('/')[-1]
 
       fname_src = os.path.join(root, filename)
-      d = os.path.join(dest_dir, 'cropped_dir', class_dirname)
+      d = os.path.join(dest_dir, 'images_category', 'cropped_images', class_dirname)
       util.ensure_dir(d)
       fname_dst = os.path.join(d, prefix + '_' + filename)
       copyfile(fname_src, fname_dst)
