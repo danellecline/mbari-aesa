@@ -33,7 +33,7 @@ def process_command_line():
                                      description='Extract cropped images from tiles and associated annotations',
                                      epilog=examples)
     parser.add_argument('--category_dir', type=str, required=False, default=os.path.join(os.getcwd(),'data/M56_75pad/images_category/cropped_images'), help="Path to store cropped images.")
-    parser.add_argument('--group_dir', type=str, required=False, default=os.path.join(os.getcwd(),'data/M56_75pad/images_group/cropped_images'), help="Path to store cropped images.")
+    parser.add_argument('--group_dir', type=str, required=False, help="Path to store cropped images.")
     parser.add_argument('--clean_file', type=str, required=False, default='M56_Annotations_QAQC.csv', help="Path to annotation file.")
     parser.add_argument('--annotation_file', type=str, required=False, default='M56_Annotations_v10.csv', help="Path to annotation file.")
     args = parser.parse_args()
@@ -88,47 +88,58 @@ if __name__ == '__main__':
       "FORAMINIFERA":"FORAMINIFERA",
       "MEDUSA5":"CNIDARIA"}
 
+    has_group = False
+
+    if args.group_dir:
+      has_group = True
+
     for index, row in df_clean.iterrows():
 
       category_label = row['Morphotype'].upper()
       index_clean = int(row['CropNo'].split('.')[0])
       reassigned_category = row['Reassigned.value'].upper()
       category = df_annotation.iloc[index_clean].Category.upper()
-      group = df_annotation.iloc[index_clean].group.upper()
+      if has_group:
+        group = df_annotation.iloc[index_clean].group.upper()
 
       image_file_category = '%s/%s/%06d.jpg' % (args.category_dir, category, index_clean)
-      image_file_group = '%s/%s/%06d.jpg' % (args.group_dir, group, index_clean)
+
+      if has_group:
+        group = df_annotation.iloc[index_clean].group.upper()
+        image_file_group = '%s/%s/%06d.jpg' % (args.group_dir, group, index_clean)
 
       if reassigned_category.upper() == "REMOVE":
         if os.path.exists(image_file_category):
           os.remove(image_file_category)
-        if os.path.exists(image_file_group):
+        if has_group and os.path.exists(image_file_group):
           os.remove(image_file_group)
       else:
-        #if os.path.exists(image_file_category):
-        if os.path.exists(image_file_group) and os.path.exists(image_file_category):
+        if has_group and os.path.exists(image_file_group):
           if reassigned_category in category_group_map.keys():
-            dir_category = '%s/%s' % (args.category_dir, reassigned_category)
-            util.ensure_dir(dir_category)
             dir_group = '%s/%s' % (args.group_dir, category_group_map[reassigned_category])
             util.ensure_dir(dir_group)
-
-            # copy file from original category to reassigned category
-            dst = '%s/%s/%06d.jpg' % (args.category_dir, reassigned_category, index_clean)
-            shutil.copyfile(image_file_category, dst)
 
             # copy file from original group to reassigned group
             dst = '%s/%s/%06d.jpg' % (args.group_dir, category_group_map[reassigned_category], index_clean)
             shutil.copyfile(image_file_category, dst)
-
-            # remove from original category
-            os.remove(image_file_category)
 
             # remove from original group
             os.remove(image_file_group)
           else:
             print('Cannot find %s in category_group_map' % reassigned_category)
             exit(-1)
+
+        if os.path.exists(image_file_category):
+          dir_category = '%s/%s' % (args.category_dir, reassigned_category)
+          util.ensure_dir(dir_category)
+
+          # copy file from original category to reassigned category
+          dst = '%s/%s/%06d.jpg' % (args.category_dir, reassigned_category, index_clean)
+          shutil.copyfile(image_file_category, dst)
+
+          # remove from original category
+          os.remove(image_file_category)
+
 
   except Exception as ex:
       print ex
