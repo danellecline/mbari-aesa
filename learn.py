@@ -281,20 +281,20 @@ if __name__ == '__main__':
                         jpeg_data_tensor, bottleneck_tensor)
 
     if args.multilabel_category_group:
-      train_bottlenecks, train_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
+      train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
                                                                           sess, df,
                                                                           image_lists, 'training',
                                                                           args.bottleneck_dir, args.image_dir,
                                                                           jpeg_data_tensor, bottleneck_tensor)
     elif args.multilabel_group_feedingtype:
-      train_bottlenecks, train_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
+      train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
                                                                           sess, df,
                                                                           image_lists, 'training',
                                                                           args.bottleneck_dir, args.image_dir,
                                                                           jpeg_data_tensor, bottleneck_tensor)
 
     else:
-      train_bottlenecks, train_ground_truth, all_label_names = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
+      train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
                                                                             args.bottleneck_dir, args.image_dir,
                                                                             jpeg_data_tensor, bottleneck_tensor)
     train_bottlenecks = np.array(train_bottlenecks)
@@ -319,17 +319,17 @@ if __name__ == '__main__':
 
     # We've completed our training, so run a test evaluation on some new images we haven't used before.
     if args.multilabel_category_group:
-      test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
+      test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
                                                           sess, df, image_lists, 'testing',
                                                           args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
                                                           bottleneck_tensor)
     elif args.multilabel_group_feedingtype:
-      test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
+      test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
                                                           sess, df, image_lists, 'testing',
                                                           args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
                                                           bottleneck_tensor)
     else:
-      test_bottlenecks, test_ground_truth, all_label_names = util.get_all_cached_bottlenecks(
+      test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks(
                                                             sess, image_lists, 'testing',
                                                             args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
                                                             bottleneck_tensor)
@@ -354,7 +354,7 @@ if __name__ == '__main__':
     if not args.multilabel_category_group and not args.multilabel_group_feedingtype:
       print("\nSaving metrics...")
       util.save_metrics(args, classifier, test_bottlenecks.astype(np.float32), all_label_names, test_ground_truth,
-                        image_lists)
+                        image_paths, image_lists)
 
     for name in image_lists.iterkeys():
         dir = image_lists[name]['dir']

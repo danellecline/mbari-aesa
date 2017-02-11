@@ -27,7 +27,7 @@ for prefix in prefix_dirs:
 
 
       fname_src = os.path.join(root_bneck, filename + '.txt')
-      d = os.path.join(dest_dir, 'bottleneck', class_dirname)
+      d = os.path.join(dest_dir, 'images_category', 'bottleneck', class_dirname)
       util.ensure_dir(d)
       fname_dst = os.path.join(d, prefix + '_' + filename + '.txt')
       if os.path.exists(fname_src):

@@ -248,7 +248,7 @@ def get_all_cached_bottlenecks_multilabel_feedingtype(sess, df, image_lists, cat
 
   bottlenecks = []
   ground_truths = []
-
+  image_paths = []
   label_names = list(image_lists.keys())
 
   # get a list of all labels by group and category(class); change cases to make them unique
@@ -277,15 +277,16 @@ def get_all_cached_bottlenecks_multilabel_feedingtype(sess, df, image_lists, cat
       ground_truth[1][all_label_names.index(feeding_type.upper())] = 1.0
       ground_truths.append(ground_truth.flatten())
       bottlenecks.append(bottleneck)
+      image_paths.append(image_path)
 
-  return bottlenecks, ground_truths, all_label_names
+  return bottlenecks, ground_truths, image_paths, all_label_names
 
 def get_all_cached_bottlenecks_multilabel_category_group(sess, df, image_lists, category, bottleneck_dir,
                                image_dir, jpeg_data_tensor, bottleneck_tensor):
 
   bottlenecks = []
   ground_truths = []
-
+  image_paths = []
   label_names = list(image_lists.keys())
 
   # get a list of all labels by group and category(class); change cases to make them unique
@@ -314,8 +315,9 @@ def get_all_cached_bottlenecks_multilabel_category_group(sess, df, image_lists, 
       ground_truth[1][all_label_names.index(group.lower())] = 1.0
       ground_truths.append(ground_truth.flatten())
       bottlenecks.append(bottleneck)
+      image_paths.append(image_path)
 
-  return bottlenecks, ground_truths, all_label_names
+  return bottlenecks, ground_truths, image_paths, all_label_names
 
 
 def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir,
@@ -323,6 +325,7 @@ def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir,
 
   bottlenecks = []
   ground_truths = []
+  image_paths = []
   label_names = list(image_lists.keys())
   for label_index in range(len(label_names)):
     label_name = label_names[label_index]
@@ -334,8 +337,9 @@ def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir,
       ground_truth[label_index] = 1.0
       ground_truths.append(ground_truth)
       bottlenecks.append(bottleneck)
+      image_paths.append(image_path)
 
-  return bottlenecks, ground_truths, label_names
+  return bottlenecks, ground_truths, image_paths, label_names
 
 def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
                       jpeg_data_tensor, bottleneck_tensor):
@@ -682,7 +686,7 @@ def add_input_distortions(flip_left_right, random_crop, random_scale, random_bri
   return jpeg_data, distort_result
 
 
-def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_lists):
+def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_paths, image_lists):
 
   sess = tf.Session()
   with sess.as_default():
@@ -700,53 +704,59 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
     y_true = np.empty(test_ground_truth.shape[0])
     y_pred = np.empty(test_ground_truth.shape[0])
 
-    # calculate the scores for predictions as needed for scipy functions
-    for j, p in enumerate(predictions):
-      print("---------")
-      predicted = int(p['index'])
-      actual = int(np.argmax(test_ground_truth[j]))
-      y_true[j] = actual
-      y_pred[j] = predicted
-      df_roc.loc[j] = {'y_test': test_ground_truth[j], 'y_score': p['class_vector'], 'labels': all_label_names}
+    with open(os.path.join(args.model_dir, 'misclassified.csv'), "w") as f2:
+      f2.write("Actual,Predicted,Filename\n")
 
-      print("%i is predicted as %s actual class %s %i %i" % (j, all_label_names[predicted], all_label_names[actual], predicted, actual))
-      if df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted])].empty:
-        df = df.append([{'actual': all_label_names[actual], 'predicted': all_label_names[predicted], 'num': 0}])
-      df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted]), 'num'] += 1
+      # calculate the scores for predictions as needed for scipy functions
+      for j, p in enumerate(predictions):
+        print("---------")
+        predicted = int(p['index'])
+        actual = int(np.argmax(test_ground_truth[j]))
+        y_true[j] = actual
+        y_pred[j] = predicted
+        df_roc.iloc[j] = {'y_test': test_ground_truth[j], 'y_score': p['class_vector'], 'labels': all_label_names}
 
-    accuracy_all = accuracy_score(y_true, y_pred)
-    precision_all = precision_score(y_true, y_pred)
-    f1_all = f1_score(y_true, y_pred)
+        print("%i is predicted as %s actual class %s %i %i" % (j, all_label_names[predicted], all_label_names[actual], predicted, actual))
+        if df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted])].empty:
+          df = df.append([{'actual': all_label_names[actual], 'predicted': all_label_names[predicted], 'num': 0}])
+        df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted]), 'num'] += 1
 
-    df_roc.to_pickle(os.path.join(args.model_dir, 'metrics_roc.pkl'))
+      if predicted is not actual:
+        f2.write("{0},{1},{2}\n".format(all_label_names[actual], all_label_names[predicted], image_paths[j]))
 
-    with open(os.path.join(args.model_dir,'metrics.csv'), "w") as f:
-      f.write("Distortion,Accuracy,Precision,F1\n")
-      if args.random_crop:
-        distortion = "{0}_{1:2d}".format("random_crop", int(args.random_crop))
-      if args.random_scale:
-        distortion = "{0}_{1:2d}".format("random_scale", int(args.random_scale))
-      if args.random_brightness:
-        distortion = "{0}_{1:2d}".format("random_brightness", int(args.random_brightness))
-      f.write("{0},{1:1.5f},{2:1.5f},{3:1.5f}\n".format(distortion, accuracy_all, precision_all, f1_all))
+      accuracy_all = accuracy_score(y_true, y_pred)
+      precision_all = precision_score(y_true, y_pred)
+      f1_all = f1_score(y_true, y_pred)
 
-    ind = np.arange(len(all_label_names))  # the x locations for the classes
-    precision = precision_score(y_true, y_pred, labels=ind, average=None)
-    recall = recall_score(y_true, y_pred, labels=ind, average=None)
-    f1 = f1_score(y_true, y_pred, labels=ind, average=None)
+      df_roc.to_pickle(os.path.join(args.model_dir, 'metrics_roc.pkl'))
 
-    with open(os.path.join(args.model_dir,'metrics_by_class.csv'), "w") as f:
-      f.write("Distortion,Class,NumTrainingImages,Accuracy,Precision,F1\n")
-      for i in range(len(recall)):
-        class_name = all_label_names[i]
-        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
+      with open(os.path.join(args.model_dir,'metrics.csv'), "w") as f:
+        f.write("Distortion,Accuracy,Precision,F1\n")
+        if args.random_crop:
+          distortion = "{0}_{1:2d}".format("random_crop", int(args.random_crop))
+        if args.random_scale:
+          distortion = "{0}_{1:2d}".format("random_scale", int(args.random_scale))
+        if args.random_brightness:
+          distortion = "{0}_{1:2d}".format("random_brightness", int(args.random_brightness))
+        f.write("{0},{1:1.5f},{2:1.5f},{3:1.5f}\n".format(distortion, accuracy_all, precision_all, f1_all))
 
-    # save CM as a csv file
-    with open(os.path.join(args.model_dir,'metrics_cm.csv'), "w") as f:
-      f.write(','.join(all_label_names) + '\n')
-      for i in range(len(all_label_names)):
-        class_name = all_label_names[i]
-        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
+      ind = np.arange(len(all_label_names))  # the x locations for the classes
+      precision = precision_score(y_true, y_pred, labels=ind, average=None)
+      recall = recall_score(y_true, y_pred, labels=ind, average=None)
+      f1 = f1_score(y_true, y_pred, labels=ind, average=None)
 
-    df.to_csv(os.path.join(args.model_dir,'metrics_cm.csv'), float_format='%1.5f')
-    print('Done')
+      with open(os.path.join(args.model_dir,'metrics_by_class.csv'), "w") as f:
+        f.write("Distortion,Class,NumTrainingImages,Accuracy,Precision,F1\n")
+        for i in range(len(recall)):
+          class_name = all_label_names[i]
+          f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
+
+      # save CM as a csv file
+      with open(os.path.join(args.model_dir,'metrics_cm.csv'), "w") as f:
+        f.write(','.join(all_label_names) + '\n')
+        for i in range(len(all_label_names)):
+          class_name = all_label_names[i]
+          f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
+
+      df.to_csv(os.path.join(args.model_dir,'metrics_cm.csv'), float_format='%1.5f')
+      print('Done')

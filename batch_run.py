@@ -43,7 +43,9 @@ def batch_process(prefix, annotation_file, options, exclude_group):
   # annotation file location; annotation file used to generate cropped images with preprocess.py
   model_out_dir = os.path.join(os.getcwd(),'data/model_output_final',prefix)
 
-  model_map = {
+  model_map = { '--image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir): 'category_sans_unk' }
+
+  '''model_map = {
               '--exclude_unknown --image_dir {0} --bottleneck_dir {1}'.format(image_group_dir, bottleneck_group_dir):
                 'group_sans_unk',
               '--exclude_partial --image_dir {0} --bottleneck_dir {1}'.format(image_group_dir, bottleneck_group_dir):
@@ -52,7 +54,7 @@ def batch_process(prefix, annotation_file, options, exclude_group):
                 'category_sans_unk',
               '--exclude_partial --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):
                 'category_sans_partials',
-            }
+            }'''
 
   '''model_map_multilabel = {
               '--multilabel_category_group --image_dir {0} --bottleneck_dir {1}'.format(image_category_dir, bottleneck_category_dir):'multilabel_category_group',
@@ -73,13 +75,13 @@ def batch_process(prefix, annotation_file, options, exclude_group):
           if not glob.glob(out_dir + '/model*'):
             all_options = ' --annotation_file %s --learning_rate .01' % annotation_file
             cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(all_options, option_model, option_distort, out_dir)
-            print(cmd)
-            subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
-            subproc.communicate()
+            #print(cmd)
+            #subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
+            #subproc.communicate()
 
   if exclude_group:
     util_plot.plot_metrics(model_out_dir, 'category_sans_unk')
-    util_plot.plot_metrics(model_out_dir, 'category_sans_partials')
+    #util_plot.plot_metrics(model_out_dir, 'category_sans_partials')
   else:
     util_plot.plot_metrics(model_out_dir, 'group_sans_unk')
     util_plot.plot_metrics(model_out_dir, 'group_sans_partials')
@@ -90,9 +92,9 @@ if __name__ == '__main__':
 
   annotation_file = os.path.join(os.getcwd(),'M56_Annotations_v10.csv')
   options = '--num_steps 30000 --testing_percentage 30 --learning_rate .01'
-  batch_process(prefix="M56_75pad", annotation_file=annotation_file, options=options, exclude_group=False)
-  batch_process(prefix="M535455_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
-  batch_process(prefix="JC062_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
+  #batch_process(prefix="M56_75pad", annotation_file=annotation_file, options=options, exclude_group=False)
+  #batch_process(prefix="M535455_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
+  #batch_process(prefix="JC062_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
   batch_process(prefix="JC062_M535455_M56_75pad", annotation_file=annotation_file, options=options, exclude_group=True)
 
 print 'Done'
