@@ -222,5 +222,5 @@ def plot_metrics(model_out_dir, glob_filter):
 
 
     plt.close('all')
-  except:
-    print 'Error aggregating/plotting metrics'
+  except Exception as ex:
+    print 'Error aggregating/plotting metrics ', type(ex)
