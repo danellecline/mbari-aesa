@@ -38,7 +38,10 @@ def process_command_line():
     parser.add_argument('--annotation_file', type=str, required=False, default='M56_Annotations_v10.csv', help="Path to annotation file.")
     args = parser.parse_args()
     return args
- 
+
+#  Cleaned with:
+# /Users/dcline/anaconda/bin/python /Users/dcline/Dropbox/GitHub/mbari-aesa/clean.py --category_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_75pad/images_category/cropped_images/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_annotations_for_Danelle.csv --clean_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_qaqc.csv
+# /Users/dcline/anaconda/bin/python /Users/dcline/Dropbox/GitHub/mbari-aesa/clean.py --category_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M56_75pad/images_category/cropped_images/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M56_Annotations_v10.csv --clean_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M56_Annotations_QAQC.csv
 if __name__ == '__main__':
   args = process_command_line()
 
