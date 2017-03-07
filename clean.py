@@ -5,7 +5,7 @@ __license__   = 'GPL v3'
 __contact__   = 'dcline at mbari.org'
 __doc__ = '''
 
-Reads in AESA annotation file and extracts training images organized by category or group for targeted analysis
+Reads in AESA annotation file and cleans according to QAQC file
 @var __date__: Date of last svn commit
 @undocumented: __doc__ parser
 @status: production
@@ -40,8 +40,10 @@ def process_command_line():
     return args
 
 #  Cleaned with:
-# /Users/dcline/anaconda/bin/python /Users/dcline/Dropbox/GitHub/mbari-aesa/clean.py --category_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_75pad/images_category/cropped_images/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_annotations_for_Danelle.csv --clean_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_qaqc.csv
-# /Users/dcline/anaconda/bin/python /Users/dcline/Dropbox/GitHub/mbari-aesa/clean.py --category_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M56_75pad/images_category/cropped_images/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M56_Annotations_v10.csv --clean_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/M56_Annotations_QAQC.csv
+# /Users/dcline/anaconda/bin/python /Users/dcline/Dropbox/GitHub/mbari-aesa/clean.py --category_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/training_images/JC062_75pad/images_category/cropped_images/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/annotations/JC062_annotations_for_Danelle.csv --clean_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/annotations/JC062_qaqc.csv
+# /Users/dcline/anaconda/bin/python /Users/dcline/Dropbox/GitHub/mbari-aesa/clean.py --category_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/training_images/M56_75pad/images_category/cropped_images/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/annotations/M56_Annotations_v10.csv --clean_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/annotations/M56_Annotations_QAQC.csv
+# /Users/dcline/anaconda/bin/python /Users/dcline/Dropbox/GitHub/mbari-aesa/clean.py --category_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/training_images/M535455_75pad/images_category/cropped_images/ --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/annotations/M56_Annotations_v10.csv --clean_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/annotations/M535455_crops_JMD.csv
+
 if __name__ == '__main__':
   args = process_command_line()
 
@@ -99,7 +101,10 @@ if __name__ == '__main__':
     for index, row in df_clean.iterrows():
 
       category_label = row['Morphotype'].upper()
-      index_clean = int(row['CropNo'].split('.')[0])
+      if isinstance(row['CropNo'], basestring):
+        index_clean = int(row['CropNo'].split('.')[0])
+      else:
+        index_clean = int(row['CropNo'])
       reassigned_category = row['Reassigned.value'].upper()
       category = df_annotation.iloc[index_clean].Category.upper()
       if has_group:
@@ -124,10 +129,11 @@ if __name__ == '__main__':
 
             # copy file from original group to reassigned group
             dst = '%s/%s/%06d.jpg' % (args.group_dir, category_group_map[reassigned_category], index_clean)
-            shutil.copyfile(image_file_category, dst)
+            if image_file_category != dst:
+              shutil.copyfile(image_file_category, dst)
 
-            # remove from original group
-            os.remove(image_file_group)
+              # remove from original group
+              os.remove(image_file_group)
           else:
             print('Cannot find %s in category_group_map' % reassigned_category)
             exit(-1)
@@ -138,11 +144,11 @@ if __name__ == '__main__':
 
           # copy file from original category to reassigned category
           dst = '%s/%s/%06d.jpg' % (args.category_dir, reassigned_category, index_clean)
-          shutil.copyfile(image_file_category, dst)
+          if image_file_category != dst:
+            shutil.copyfile(image_file_category, dst)
 
-          # remove from original category
-          os.remove(image_file_category)
-
+            # remove from original category
+            os.remove(image_file_category)
 
   except Exception as ex:
       print ex
