@@ -39,6 +39,7 @@ def process_command_line():
     parser.add_argument('--out_dir', type=str, required=False, default=os.path.join(os.getcwd(),'/cropped_images'), help="Path to store cropped images.")
     parser.add_argument('--annotation_file', type=str, required=True, default='/Volumes/ScratchDrive/AESA/M56_Annotations_v10.csv', help="Path to annotation file.")
     parser.add_argument('--file_format', type=str, required=False, help="Alternative file prefix to use for calculating the associated frame the annotation is from, e.g. M56_10441297_%d.jpg'")
+    parser.add_argument('--strip_trailing_dot', action='store_true', required=False, help="Strip trailing .'")
     args = parser.parse_args()
     return args
 
@@ -60,6 +61,9 @@ def extract_annotation(raw_file, annotation):
         raw_file, crop_pixels, crop_pixels, annotation.centerx - w, annotation.centery - w,annotation.image_file))
     print 'Creating  %s ...' % annotation.image_file
 
+# /Users/dcline/anaconda/bin/python /Users/dcline/Dropbox/GitHub/mbari-aesa/preprocess.py --by_category --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_75pad/images_category/cropped_images/ --in_dir "/Volumes/ScratchDrive/AESA/JC062/" --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/JC062_annotations_for_Danelle.csv
+# /Users/dcline/anaconda/bin/python preprocess.py --by_group --out_dir /Users/dcline/Dropbox/GitHub/mbari-aesa/data/training_images/M56_75pad/images_group/cropped_images/ --in_dir "/Volumes/ScratchDrive/AESA/M56 tiles/raw" --annotation_file /Users/dcline/Dropbox/GitHub/mbari-aesa/data/annotations/M56_Annotations_v10.csv --strip_trailing_dot --file_format M56_10441297_%d.jpg
+
 if __name__ == '__main__':
   args = process_command_line()
 
@@ -75,7 +79,9 @@ if __name__ == '__main__':
     for index, row in df.iterrows():
 
       try:
-        f = row['FileName'].replace('.','') # handle last . sometimes found Filename column
+        f = row['FileName']
+        if args.strip_trailing_dot and isinstance(f, basestring):
+          f = f.replace('.','') # handle last . sometimes found Filename column
         if args.file_format:
           filename = os.path.join(args.in_dir, args.file_format % f)
         else:
