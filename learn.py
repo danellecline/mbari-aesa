@@ -51,6 +51,7 @@ def process_command_line():
 
     # Input and output file flags.
     parser.add_argument('--image_dir', type=str, required=True,  help="Path to folders of labeled images.")
+    parser.add_argument('--exemplar_dir', type=str, required=True,  help="Path to folders of exemplar images for each label")
     # where the model information lives
     parser.add_argument('--model_dir', type=str, default=os.path.join( "/tmp/tfmodels/img_classify", str(int(time.time()))), help='Directory for storing model info')
 
@@ -83,6 +84,7 @@ def process_command_line():
     parser.add_argument('--random_brightness', type=int, default=0, help="""A percentage determining how much to randomly multiply the training image input pixels up or down by.""")
 
     # Custom selections AESA training set
+    parser.add_argument('--skiplt50', dest='skiplt50', action='store_true', help="Skip over classes less than 50 images")
     parser.add_argument('--exclude_unknown', dest='exclude_unknown', action='store_true', help="Exclude classes/categories that include the unknown category")
     parser.add_argument('--exclude_partials', dest='exclude_partials', action='store_true', help="Exclude partial fauna images from training/testing")
     parser.add_argument('--annotation_file', type=str, help="Path to annotation file.")
@@ -249,8 +251,11 @@ if __name__ == '__main__':
     d = os.path.dirname(output_labels_file_lt20)
     util.ensure_dir(d)
 
+    # Create example images
+    exemplars = util.create_image_exemplars(args.exemplar_dir)
+
     # Look at the folder structure, and create lists of all the images.
-    image_lists = util.create_image_lists(df, args.exclude_unknown, args.exclude_partials, output_labels_file,
+    image_lists = util.create_image_lists(df, args.skiplt50, args.exclude_unknown, args.exclude_partials, output_labels_file,
                                           output_labels_file_lt20,
                                           args.image_dir, args.testing_percentage,
                                           args.validation_percentage)
@@ -354,7 +359,7 @@ if __name__ == '__main__':
     if not args.multilabel_category_group and not args.multilabel_group_feedingtype:
       print("\nSaving metrics...")
       util.save_metrics(args, classifier, test_bottlenecks.astype(np.float32), all_label_names, test_ground_truth,
-                        image_paths, image_lists)
+                        image_paths, image_lists, exemplars)
 
     for name in image_lists.iterkeys():
         dir = image_lists[name]['dir']

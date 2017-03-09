@@ -26,6 +26,7 @@ import tarfile
 import tensorflow as tf
 import pandas as pd
 import re
+import shutil
 
 from tensorflow.python.platform import gfile
 from six.moves import urllib
@@ -36,6 +37,8 @@ from tensorflow.python.framework import tensor_shape
 import conf
 from tensorflow.python.framework import ops
 from sklearn.metrics import f1_score, roc_curve, auc, accuracy_score, precision_score, recall_score, average_precision_score
+import tempfile
+import xlsxwriter
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
 
@@ -121,7 +124,43 @@ def read_list_of_floats_from_file(tensor_size, file_path):
     s = struct.unpack('d' * tensor_size, f.read())
     return list(s)
 
-def create_image_lists(df, exclude_unknown, exclude_partials, output_labels_file,
+def create_image_exemplars(image_dir):
+  """Builds a list of examplar images
+  Returns:
+    A dictionary containing an entry for each example subfolder
+  """
+  if not gfile.Exists(image_dir):
+    print("Image directory '" + image_dir + "' not found.")
+    return None
+  exemplars = {}
+  sub_dirs = [x[0] for x in os.walk(image_dir)]
+  # The root directory comes first, so skip it.
+  is_root_dir = True
+  for sub_dir in sub_dirs:
+    if is_root_dir:
+      is_root_dir = False
+      continue
+    extensions = ['jpg', 'jpeg', 'JPG', 'JPEG']
+    file_list = []
+    dir_name = os.path.basename(sub_dir)
+    if dir_name == image_dir:
+      continue
+    print("Looking for images in '" + dir_name + "'")
+    for extension in extensions:
+      file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
+      file_list.extend(glob.glob(file_glob))
+    if not file_list:
+      print('No files found')
+      continue
+    label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+    example_images = []
+    exemplars[label_name] = {}
+    for file_name in file_list:
+      example_images.append(file_name)
+    exemplars[label_name] = example_images
+  return exemplars
+
+def create_image_lists(df, skiplt50, exclude_unknown, exclude_partials, output_labels_file,
                        output_labels_file_lt20, image_dir,
                        testing_percentage, validation_percentage):
   """Builds a list of training images from the file system.
@@ -201,6 +240,9 @@ def create_image_lists(df, exclude_unknown, exclude_partials, output_labels_file
     if len(file_list) < 20:
       print('WARNING: Folder {0} has less than 20 images, which may cause issues.'.format(dir_name))
       labels_lt20.append(dir_name.lower())
+    if skiplt50 and len(file_list) < 50:
+      print('Skipping folder {0} which has less than 50 images.'.format(dir_name))
+      continue
     elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
       print('WARNING: Folder {0} has more than {1} images. Some images will '
             'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
@@ -686,7 +728,7 @@ def add_input_distortions(flip_left_right, random_crop, random_scale, random_bri
   return jpeg_data, distort_result
 
 
-def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_paths, image_lists):
+def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_paths, image_lists, exemplars):
 
   sess = tf.Session()
   with sess.as_default():
@@ -704,59 +746,87 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
     y_true = np.empty(test_ground_truth.shape[0])
     y_pred = np.empty(test_ground_truth.shape[0])
 
-    with open(os.path.join(args.model_dir, 'misclassified.csv'), "w") as f2:
-      f2.write("Actual,Predicted,Filename\n")
+    tmpdir = tempfile.mkdtemp()
+    workbook = xlsxwriter.Workbook(os.path.join(args.model_dir,'misclassified.xlsx'))
+    f2 = open(os.path.join(args.model_dir, 'misclassified.csv'), "w")
+    f2.write("Actual,Predicted,Filename\n")
+    worksheet = workbook.add_worksheet()
+    worksheet.write(0, 0, 'Thumbnail')
+    worksheet.write(0, 1, 'Actual')
+    worksheet.write(0, 2, 'Predicted')
+    worksheet.write(0, 3, 'Exemplar')
+    worksheet.write(0, 4, 'Filename')
 
-      # calculate the scores for predictions as needed for scipy functions
-      for j, p in enumerate(predictions):
-        print("---------")
-        predicted = int(p['index'])
-        actual = int(np.argmax(test_ground_truth[j]))
-        y_true[j] = actual
-        y_pred[j] = predicted
-        df_roc.iloc[j] = {'y_test': test_ground_truth[j], 'y_score': p['class_vector'], 'labels': all_label_names}
+    # calculate the scores for predictions as needed for scipy functions
+    row = 1
+    for j, p in enumerate(predictions):
+      print("---------")
+      predicted = int(p['index'])
+      actual = int(np.argmax(test_ground_truth[j]))
+      y_true[j] = actual
+      y_pred[j] = predicted
+      df_roc.iloc[j] = {'y_test': test_ground_truth[j], 'y_score': p['class_vector'], 'labels': all_label_names}
 
-        print("%i is predicted as %s actual class %s %i %i" % (j, all_label_names[predicted], all_label_names[actual], predicted, actual))
-        if df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted])].empty:
-          df = df.append([{'actual': all_label_names[actual], 'predicted': all_label_names[predicted], 'num': 0}])
-        df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted]), 'num'] += 1
+      print("%i is predicted as %s actual class %s %i %i" % (j, all_label_names[predicted], all_label_names[actual], predicted, actual))
+      if df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted])].empty:
+        df = df.append([{'actual': all_label_names[actual], 'predicted': all_label_names[predicted], 'num': 0}])
+      df.ix[(df.actual == all_label_names[actual]) & (df.predicted == all_label_names[predicted]), 'num'] += 1
 
       if predicted is not actual:
         f2.write("{0},{1},{2}\n".format(all_label_names[actual], all_label_names[predicted], image_paths[j]))
+        thumbnail_file = crop(tmpdir, image_paths[j])
+        worksheet.set_row(row, height=50)
+        worksheet.insert_image(row, 0, thumbnail_file)
+        worksheet.write(row, 1, all_label_names[actual])
+        worksheet.write(row, 2, all_label_names[predicted])
+        thumbnail_file = crop(tmpdir, random.choice(exemplars[all_label_names[predicted]]))
+        worksheet.insert_image(row, 3, thumbnail_file)
+        worksheet.write(row, 4, image_paths[j])
+        row += 1
 
-      accuracy_all = accuracy_score(y_true, y_pred)
-      precision_all = precision_score(y_true, y_pred)
-      f1_all = f1_score(y_true, y_pred)
+    accuracy_all = accuracy_score(y_true, y_pred)
+    precision_all = precision_score(y_true, y_pred)
+    f1_all = f1_score(y_true, y_pred)
 
-      df_roc.to_pickle(os.path.join(args.model_dir, 'metrics_roc.pkl'))
+    df_roc.to_pickle(os.path.join(args.model_dir, 'metrics_roc.pkl'))
 
-      with open(os.path.join(args.model_dir,'metrics.csv'), "w") as f:
-        f.write("Distortion,Accuracy,Precision,F1\n")
-        if args.random_crop:
-          distortion = "{0}_{1:2d}".format("random_crop", int(args.random_crop))
-        if args.random_scale:
-          distortion = "{0}_{1:2d}".format("random_scale", int(args.random_scale))
-        if args.random_brightness:
-          distortion = "{0}_{1:2d}".format("random_brightness", int(args.random_brightness))
-        f.write("{0},{1:1.5f},{2:1.5f},{3:1.5f}\n".format(distortion, accuracy_all, precision_all, f1_all))
+    with open(os.path.join(args.model_dir,'metrics.csv'), "w") as f:
+      f.write("Distortion,Accuracy,Precision,F1\n")
+      if args.random_crop:
+        distortion = "{0}_{1:2d}".format("random_crop", int(args.random_crop))
+      if args.random_scale:
+        distortion = "{0}_{1:2d}".format("random_scale", int(args.random_scale))
+      if args.random_brightness:
+        distortion = "{0}_{1:2d}".format("random_brightness", int(args.random_brightness))
+      f.write("{0},{1:1.5f},{2:1.5f},{3:1.5f}\n".format(distortion, accuracy_all, precision_all, f1_all))
 
-      ind = np.arange(len(all_label_names))  # the x locations for the classes
-      precision = precision_score(y_true, y_pred, labels=ind, average=None)
-      recall = recall_score(y_true, y_pred, labels=ind, average=None)
-      f1 = f1_score(y_true, y_pred, labels=ind, average=None)
+    ind = np.arange(len(all_label_names))  # the x locations for the classes
+    precision = precision_score(y_true, y_pred, labels=ind, average=None)
+    recall = recall_score(y_true, y_pred, labels=ind, average=None)
+    f1 = f1_score(y_true, y_pred, labels=ind, average=None)
 
-      with open(os.path.join(args.model_dir,'metrics_by_class.csv'), "w") as f:
-        f.write("Distortion,Class,NumTrainingImages,Accuracy,Precision,F1\n")
-        for i in range(len(recall)):
-          class_name = all_label_names[i]
-          f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
+    with open(os.path.join(args.model_dir,'metrics_by_class.csv'), "w") as f:
+      f.write("Distortion,Class,NumTrainingImages,Accuracy,Precision,F1\n")
+      for i in range(len(recall)):
+        class_name = all_label_names[i]
+        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
 
-      # save CM as a csv file
-      with open(os.path.join(args.model_dir,'metrics_cm.csv'), "w") as f:
-        f.write(','.join(all_label_names) + '\n')
-        for i in range(len(all_label_names)):
-          class_name = all_label_names[i]
-          f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
+    # save CM as a csv file
+    with open(os.path.join(args.model_dir,'metrics_cm.csv'), "w") as f:
+      f.write(','.join(all_label_names) + '\n')
+      for i in range(len(all_label_names)):
+        class_name = all_label_names[i]
+        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
 
-      df.to_csv(os.path.join(args.model_dir,'metrics_cm.csv'), float_format='%1.5f')
-      print('Done')
+    df.to_csv(os.path.join(args.model_dir,'metrics_cm.csv'), float_format='%1.5f')
+    print('Done')
+
+    workbook.close()
+    shutil.rmtree(tmpdir)
+
+
+def crop(tmpdir, image_path):
+  path, filename = os.path.split(image_path)
+  thumbnail_file = os.path.join(tmpdir, 'thumb_' + filename)
+  os.system('convert "%s" -thumbnail 50x50 -unsharp 0x.5 "%s"' % (image_path, thumbnail_file))
+  return thumbnail_file
