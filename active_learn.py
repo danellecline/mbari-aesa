@@ -22,7 +22,19 @@ import glob
 def batch_process(prefix, annotation_file, model_out_dir, options):
   distortion_map = {
     '--random_scale 20': 'random_scale_20',
+    '--random_scale 10': 'random_scale_10',
+    '--random_crop 10': 'random_crop_10',
+    '--random_brightness 10': 'random_brightness_10',
+    '--random_crop 20': 'random_crop_20',
+    '--random_brightness 20': 'random_brightness_20',
+    '--random_scale 50': 'random_scale_50',
+    '--random_crop 50': 'random_crop_50',
+    '--random_brightness 50': 'random_brightness_50'
   }
+
+
+  # image directory where exemplar images are
+  exemplar_dir = os.path.join(os.getcwd(),'data', 'training_images', 'exemplars')
 
   # image directory where cropped images are located; generated either by group or by category
   image_category_dir = os.path.join(os.getcwd(),'data', 'training_images', 'optimal',  prefix,'images_category','cropped_images')
@@ -37,7 +49,7 @@ def batch_process(prefix, annotation_file, model_out_dir, options):
     for option_distort,distort_sub_dir in distortion_map.iteritems():
       out_dir = '{0}/{1}/{2}'.format(model_out_dir, model_sub_dir, distort_sub_dir)
       util.ensure_dir(out_dir)
-      all_options = ' --annotation_file {0} {1}'.format(annotation_file, options)
+      all_options = ' --exemplar_dir {0} --annotation_file {1} {2}'.format(exemplar_dir, annotation_file, options)
       cmd = 'python ./learn.py {0} {1} {2} --model_dir {3}'.format(all_options, option_model, option_distort, out_dir)
       print(cmd)
       subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
@@ -50,15 +62,24 @@ if __name__ == '__main__':
   annotation_file = os.path.join(os.getcwd(),'data','annotations','M56_Annotations_v10.csv')
   options = '--num_steps 30000 --testing_percentage 30 --learning_rate .01 --skiplt50 '
   prefix = 'JC062_M535455_M56_75pad_cnidaria'
-  model_out_dir = os.path.join(os.getcwd(),'data/model_output_final/optimal', prefix + '_iter1')
+
+  model_out_dir = os.path.join(os.getcwd(),'data/model_output_final/optimal', prefix)
   batch_process(prefix=prefix, model_out_dir=model_out_dir, annotation_file=annotation_file, options=options)
 
-  #cmd = 'python ./misclassification_clean.py --classes cnidaria2 --csvdir %s' % model_out_dir
-  #print(cmd)
-  #subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
-  #subproc.communicate()
+  cmd = 'python ./misclassification_clean.py --classes cnidaria2 --csvdir %s' % model_out_dir
+  print(cmd)
+  subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
+  subproc.communicate()
 
-  #model_out_dir = os.path.join(os.getcwd(), 'data/model_output_final/optimal', prefix + '_iter4')
-  #batch_process(prefix=prefix, model_out_dir=model_out_dir, annotation_file=annotation_file, options=options)
+  model_out_dir = os.path.join(os.getcwd(), 'data/model_output_final/optimal', prefix + '_iter1')
+  batch_process(prefix=prefix, model_out_dir=model_out_dir, annotation_file=annotation_file, options=options)
+
+  cmd = 'python ./misclassification_clean.py --classes cnidaria2 --csvdir %s' % model_out_dir
+  print(cmd)
+  subproc = subprocess.Popen(cmd, env=os.environ, shell=True)
+  subproc.communicate()
+
+  model_out_dir = os.path.join(os.getcwd(), 'data/model_output_final/optimal', prefix + '_iter2')
+  batch_process(prefix=prefix, model_out_dir=model_out_dir, annotation_file=annotation_file, options=options)
 
 print 'Done'
