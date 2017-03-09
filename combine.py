@@ -4,13 +4,13 @@ import fnmatch
 from shutil import copyfile
 
 prefix_dirs = ['JC062_75pad', 'M535455_75pad', 'M56_75pad']
-dest_dir = os.path.join(os.getcwd(),'data', 'JC062_M535455_M56_75pad')
+dest_dir = os.path.join(os.getcwd(),'data', 'training_images', 'JC062_M535455_M56_75pad')
 util.ensure_dir(dest_dir)
 
 for prefix in prefix_dirs:
 
   # image directory where cropped images are located
-  image_dir = os.path.join(os.getcwd(),'data', prefix,'images_category','cropped_images')
+  image_dir = os.path.join(os.getcwd(),'data', 'training_images', prefix,'images_category','cropped_images')
 
   for root, dirnames, filenames in os.walk(image_dir):
     root_bneck = root.replace('cropped_images', 'bottleneck')
