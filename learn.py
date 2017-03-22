@@ -50,10 +50,14 @@ def process_command_line():
                                      epilog=examples)
 
     # Input and output file flags.
-    parser.add_argument('--image_dir', type=str, required=True,  help="Path to folders of labeled images.")
+    parser.add_argument('--image_dir', type=str, required=False,  help="Path to folders of labeled images.")
     parser.add_argument('--exemplar_dir', type=str, required=True,  help="Path to folders of exemplar images for each label")
     # where the model information lives
     parser.add_argument('--model_dir', type=str, default=os.path.join( "/tmp/tfmodels/img_classify", str(int(time.time()))), help='Directory for storing model info')
+
+    # run prediction only
+    parser.add_argument('--predict_only', dest='predict_only', action='store_true', help="Run prediction only; checkpointed model must exist.")
+    parser.add_argument('--prediction_image_dir', type=str, default='prediction_images', help="Directory of images to use for predictions")
 
     # Details of the training configuration.
     parser.add_argument('--num_steps', type=int, default=15000, help="How many training steps to run before ending.")
@@ -90,6 +94,7 @@ def process_command_line():
     parser.add_argument('--annotation_file', type=str, help="Path to annotation file.")
     parser.add_argument('--multilabel_category_group', action='store_true', default=False, help="Whether to learning a multilabel both by Category and Group)")
     parser.add_argument('--multilabel_group_feedingtype', action='store_true', default=False, help="Whether to learning a multilabel both by Group and Feeding Type)")
+    parser.add_argument('--multilabel_tl_category', action='store_true', default=False, help="Whether to learning a multilabel both by TentacleLength and Category )")
 
     args = parser.parse_args()
     return args
@@ -255,55 +260,68 @@ if __name__ == '__main__':
     exemplars = util.create_image_exemplars(args.exemplar_dir)
 
     # Look at the folder structure, and create lists of all the images.
-    image_lists = util.create_image_lists(df, args.skiplt50, args.exclude_unknown, args.exclude_partials, output_labels_file,
-                                          output_labels_file_lt20,
-                                          args.image_dir, args.testing_percentage,
-                                          args.validation_percentage)
+    if not args.predict_only:
+      image_lists = util.create_image_lists(df, args.skiplt50, args.exclude_unknown, args.exclude_partials, output_labels_file,
+                                            output_labels_file_lt20,
+                                            args.image_dir, args.testing_percentage,
+                                            args.validation_percentage)
 
-    class_count = len(image_lists.keys())
-    if class_count == 0:
-      print('No valid folders of images found at ' + args.image_dir)
-      exit(-1)
-    if class_count == 1:
-      print('Only one valid folder of images found at ' + args.image_dir +
-            ' - multiple classes are needed for classification.')
-      exit(-1)
+      class_count = len(image_lists.keys())
+      if class_count == 0:
+        print('No valid folders of images found at ' + args.image_dir)
+        exit(-1)
+      if class_count == 1:
+        print('Only one valid folder of images found at ' + args.image_dir +
+              ' - multiple classes are needed for classification.')
+        exit(-1)
 
-    # See if the command-line flags mean we're applying any distortions.
-    do_distort_images =  (args.flip_left_right or (args.random_crop != 0) or (args.random_scale != 0) or
-                          (args.random_brightness != 0))
-    sess = tf.Session()
+      # See if the command-line flags mean we're applying any distortions.
+      do_distort_images =  (args.flip_left_right or (args.random_crop != 0) or (args.random_scale != 0) or
+                            (args.random_brightness != 0))
+      sess = tf.Session()
 
-    if do_distort_images:
-      # We will be applying distortions, so setup the operations we'll need.
-      distorted_jpeg_data_tensor, distorted_image_tensor = util.add_input_distortions(
-          args.flip_left_right, args.random_crop, args.random_scale,
-          args.random_brightness)
-    else:
-      # We'll make sure we've calculated the 'bottleneck' image summaries and
-      # cached them on disk.
-      util.cache_bottlenecks(sess, image_lists, args.image_dir, args.bottleneck_dir,
-                        jpeg_data_tensor, bottleneck_tensor)
+      if do_distort_images:
+        # We will be applying distortions, so setup the operations we'll need.
+        distorted_jpeg_data_tensor, distorted_image_tensor = util.add_input_distortions(
+            args.flip_left_right, args.random_crop, args.random_scale,
+            args.random_brightness)
+      else:
+        # We'll make sure we've calculated the 'bottleneck' image summaries and
+        # cached them on disk.
+        util.cache_bottlenecks(sess, image_lists, args.image_dir, args.bottleneck_dir,
+                          jpeg_data_tensor, bottleneck_tensor)
 
-    if args.multilabel_category_group:
-      train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
-                                                                          sess, df,
-                                                                          image_lists, 'training',
-                                                                          args.bottleneck_dir, args.image_dir,
-                                                                          jpeg_data_tensor, bottleneck_tensor)
-    elif args.multilabel_group_feedingtype:
-      train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
-                                                                          sess, df,
-                                                                          image_lists, 'training',
-                                                                          args.bottleneck_dir, args.image_dir,
-                                                                          jpeg_data_tensor, bottleneck_tensor)
-
-    else:
-      train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
+      if args.multilabel_category_group:
+        train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
+                                                                            sess, df,
+                                                                            image_lists, 'training',
                                                                             args.bottleneck_dir, args.image_dir,
                                                                             jpeg_data_tensor, bottleneck_tensor)
-    train_bottlenecks = np.array(train_bottlenecks)
-    train_ground_truth = np.array(train_ground_truth)
+      elif args.multilabel_group_feedingtype:
+        train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
+                                                                            sess, df,
+                                                                            image_lists, 'training',
+                                                                            args.bottleneck_dir, args.image_dir,
+                                                                            jpeg_data_tensor, bottleneck_tensor)
+
+      else:
+        train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
+                                                                              args.bottleneck_dir, args.image_dir,
+                                                                              jpeg_data_tensor, bottleneck_tensor)
+      train_bottlenecks = np.array(train_bottlenecks)
+      train_ground_truth = np.array(train_ground_truth)
+
+    else:
+      # load the labels list, needed to create the model; exit if it's not there
+      if gfile.Exists(output_labels_file):
+        with open(output_labels_file, 'r') as lfile:
+          labels_string = lfile.read()
+          labels_list = json.loads(labels_string)
+          print("labels list: %s" % labels_list)
+          class_count = len(labels_list)
+      else:
+        print("Labels list %s not found" % output_labels_file)
+        exit(-1)
 
     # Define the custom estimator
     if args.multilabel_category_group or args.multilabel_group_feedingtype:
@@ -315,55 +333,65 @@ if __name__ == '__main__':
     model_params = {}
     classifier = tf.contrib.learn.Estimator(model_fn=model_fn, params=model_params, model_dir=args.model_dir)
 
-    # run the training
-    print("Starting training for %s steps max" % args.num_steps)
-    classifier.fit(
-        x=train_bottlenecks.astype(np.float32),
-        y=train_ground_truth, batch_size=10,
-        max_steps=args.num_steps)
+    if not args.predict_only:
+      # run the training
+      print("Starting training for %s steps max" % args.num_steps)
+      classifier.fit(
+          x=train_bottlenecks.astype(np.float32),
+          y=train_ground_truth, batch_size=10,
+          max_steps=args.num_steps)
 
-    # We've completed our training, so run a test evaluation on some new images we haven't used before.
-    if args.multilabel_category_group:
-      test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
-                                                          sess, df, image_lists, 'testing',
-                                                          args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
-                                                          bottleneck_tensor)
-    elif args.multilabel_group_feedingtype:
-      test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
-                                                          sess, df, image_lists, 'testing',
-                                                          args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
-                                                          bottleneck_tensor)
-    else:
-      test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks(
-                                                            sess, image_lists, 'testing',
+      # We've completed our training, so run a test evaluation on some new images we haven't used before.
+      if args.multilabel_category_group:
+        test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
+                                                            sess, df, image_lists, 'testing',
                                                             args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
                                                             bottleneck_tensor)
-    test_bottlenecks = np.array(test_bottlenecks)
-    test_ground_truth = np.array(test_ground_truth)
-    print("evaluating....")
-    if args.multilabel_category_group or args.multilabel_group_feedingtype:
-      print("Evaluating cached bottlenecks")
-      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth)
+      elif args.multilabel_group_feedingtype:
+        test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
+                                                            sess, df, image_lists, 'testing',
+                                                            args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
+                                                            bottleneck_tensor)
+      else:
+        test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks(
+                                                              sess, image_lists, 'testing',
+                                                              args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
+                                                              bottleneck_tensor)
+      test_bottlenecks = np.array(test_bottlenecks)
+      test_ground_truth = np.array(test_ground_truth)
+      print("evaluating....")
+      if args.multilabel_category_group or args.multilabel_group_feedingtype:
+        print("Evaluating cached bottlenecks")
+        classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth)
+      else:
+        classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth)
+
+      # write the output labels file if it doesn't already exist
+      if gfile.Exists(output_labels_file):
+        print("Labels list file already exists; not writing.")
+      else:
+        output_labels = json.dumps(list(image_lists.keys()))
+        with gfile.FastGFile(output_labels_file, 'w') as f:
+          f.write(output_labels)
+
+      # these plots don't apply to multilabels
+      if not args.multilabel_category_group and not args.multilabel_group_feedingtype:
+        print("\nSaving metrics...")
+        util.save_metrics(args, classifier, test_bottlenecks.astype(np.float32), all_label_names, test_ground_truth,
+                          image_paths, image_lists, exemplars)
+
+      for name in image_lists.iterkeys():
+          dir = image_lists[name]['dir']
+          paths = [ '%s/%s/%s'%(args.image_dir, dir, filename) for filename in image_lists[name]['testing'] ]
+
+      add_images(sess, paths, args.model_dir)
     else:
-      classifier.evaluate(test_bottlenecks.astype(np.float32), test_ground_truth)
+      print("\nPredicting...")
+      img_list = util.get_prediction_images(args.prediction_image_dir)
+      if not img_list:
+        print("No images found in %s" % args.prediction_image_dir)
+      else:
+        util.make_image_predictions(output_labels_file, classifier, jpeg_data_tensor, bottleneck_tensor,
+                                    img_list, labels_list, os.path.join(args.prediction_image_dir,'classified'))
 
-    # write the output labels file if it doesn't already exist
-    if gfile.Exists(output_labels_file):
-      print("Labels list file already exists; not writing.")
-    else:
-      output_labels = json.dumps(list(image_lists.keys()))
-      with gfile.FastGFile(output_labels_file, 'w') as f:
-        f.write(output_labels)
-
-    # these plots don't apply to multilabels
-    if not args.multilabel_category_group and not args.multilabel_group_feedingtype:
-      print("\nSaving metrics...")
-      util.save_metrics(args, classifier, test_bottlenecks.astype(np.float32), all_label_names, test_ground_truth,
-                        image_paths, image_lists, exemplars)
-
-    for name in image_lists.iterkeys():
-        dir = image_lists[name]['dir']
-        paths = [ '%s/%s/%s'%(args.image_dir, dir, filename) for filename in image_lists[name]['testing'] ]
-
-    add_images(sess, paths, args.model_dir)
-    print("Done !")
+print("Done !")
