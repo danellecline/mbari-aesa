@@ -30,7 +30,7 @@ import shutil
 
 from tensorflow.python.platform import gfile
 from six.moves import urllib
-
+from shutil import copyfile
 from tensorflow.python.util import compat
 import random
 from tensorflow.python.framework import tensor_shape
@@ -41,6 +41,61 @@ import tempfile
 import xlsxwriter
 
 MAX_NUM_IMAGES_PER_CLASS = 2 ** 27 - 1  # ~134M
+
+def get_prediction_images(img_dir):
+  """Grab images from the prediction directory."""
+  extensions = ['jpg', 'jpeg', 'JPG', 'JPEG']
+  file_list = []
+  if not gfile.Exists(img_dir):
+    print("Image directory '" + img_dir + "' not found.")
+    return None
+  print("Looking for images in '" + img_dir + "'")
+  for extension in extensions:
+    file_glob = os.path.join(img_dir, '*.' + extension)
+    file_list.extend(glob.glob(file_glob))
+  if not file_list:
+    print('No image files found')
+  return file_list
+
+def make_image_predictions(output_labels_file, classifier, jpeg_data_tensor, bottleneck_tensor, path_list, labels_list, target_dir):
+  """Use the learned model to make predictions."""
+
+  if not labels_list:
+    if gfile.Exists(output_labels_file):
+      with open(output_labels_file, 'r') as lfile:
+        labels_string = lfile.read()
+        labels_list = json.loads(labels_string)
+        print("labels list: %s" % labels_list)
+    else:
+      print("Labels list %s not found" % output_labels_file)
+      return None
+
+  sess = tf.Session()
+  bottlenecks = []
+  print("Predicting for images: %s" % path_list)
+  for img_path in path_list:
+    # get bottleneck for an image path. Don't cache the bottleneck values here.
+    if not gfile.Exists(img_path):
+      tf.logging.fatal('File does not exist %s', img_path)
+    image_data = gfile.FastGFile(img_path, 'rb').read()
+    bottleneck_values = run_bottleneck_on_image(sess, image_data,
+                                                jpeg_data_tensor,
+                                                bottleneck_tensor)
+    bottlenecks.append(bottleneck_values)
+  prediction_input = np.array(bottlenecks)
+  predictions = classifier.predict(x=prediction_input, as_iterable=True)
+  print("Predictions:")
+  for i, p in enumerate(predictions):
+    for k in p.keys():
+      if k == "index":
+        score = p['class_vector'][p[k]]
+        label = labels_list[p[k]]
+        if score > 0.70:
+          print("index label is: %s score %f file: %s" % (label, score, path_list[i]))
+          filename = '{0}_{1}'.format(int(100*score),os.path.basename(path_list[i]))
+          dst = os.path.join(target_dir, label.upper())
+          ensure_dir(dst)
+          copyfile(path_list[i], dst + '/' + filename)
 
 def get_dims(image):
   """
@@ -276,7 +331,6 @@ def create_image_lists(df, skiplt50, exclude_unknown, exclude_partials, output_l
         'training': training_images,
         'testing': testing_images,
         'validation': validation_images,
-        'num_training_images': len(training_images),
     }
 
   labels = json.dumps(list(labels_lt20))
@@ -292,6 +346,7 @@ def get_all_cached_bottlenecks_multilabel_feedingtype(sess, df, image_lists, cat
   ground_truths = []
   image_paths = []
   label_names = list(image_lists.keys())
+  label_totals = {}
 
   # get a list of all labels by group and category(class); change cases to make them unique
   groups_unique = list(df.group.unique())
@@ -299,6 +354,9 @@ def get_all_cached_bottlenecks_multilabel_feedingtype(sess, df, image_lists, cat
   feeding_types_unique = list(df[u'feeding.type'].unique())
   feeding_types = [name.upper() for name in feeding_types_unique]
   all_label_names = groups + feeding_types
+
+  for l in all_label_names:
+    label_totals[l] = 0
 
   # go through the images in whatever order they are sorted - this might be by group or category(class)
   for label_index in range(len(label_names)):
@@ -329,6 +387,7 @@ def get_all_cached_bottlenecks_multilabel_category_group(sess, df, image_lists, 
   bottlenecks = []
   ground_truths = []
   image_paths = []
+  label_totals = {}
   label_names = list(image_lists.keys())
 
   # get a list of all labels by group and category(class); change cases to make them unique
@@ -337,6 +396,9 @@ def get_all_cached_bottlenecks_multilabel_category_group(sess, df, image_lists, 
   groups_unique = list(df.group.unique())
   groups = [name.lower() for name in groups_unique]
   all_label_names = classes + groups
+
+  for l in all_label_names:
+    label_totals[l] = 0
 
   # go through the images in whatever order they are sorted - this might be by group or category(class)
   for label_index in range(len(label_names)):
@@ -351,15 +413,17 @@ def get_all_cached_bottlenecks_multilabel_category_group(sess, df, image_lists, 
       ground_truth = np.zeros((2, len(all_label_names)), dtype=np.float32)
       filename = os.path.split(image_path)[1]
       id = int(filename.split('.')[0])
-      cls = df.iloc[id].Category
-      group = df.iloc[id].group
-      ground_truth[0][all_label_names.index(cls.upper())] = 1.0
-      ground_truth[1][all_label_names.index(group.lower())] = 1.0
+      cls = df.iloc[id].Category.upper()
+      group = df.iloc[id].group.lower()
+      ground_truth[0][all_label_names.index(cls)] = 1.0
+      ground_truth[1][all_label_names.index(group)] = 1.0
       ground_truths.append(ground_truth.flatten())
       bottlenecks.append(bottleneck)
       image_paths.append(image_path)
+      label_totals[group] += 1
+      label_totals[cls] += 1
 
-  return bottlenecks, ground_truths, image_paths, all_label_names
+  return bottlenecks, ground_truths, image_paths, all_label_names, label_totals
 
 
 def get_all_cached_bottlenecks(sess, image_lists, category, bottleneck_dir,
@@ -824,6 +888,130 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
     workbook.close()
     shutil.rmtree(tmpdir)
 
+def save_metrics_category_group(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_paths, image_lists, exemplars, label_totals):
+
+  sess = tf.Session()
+  with sess.as_default():
+    results_y_test = {}
+    results_y_score = {}
+    df_category = pd.DataFrame(columns=['actual','predicted','num'])
+    df_group = pd.DataFrame(columns=['actual', 'predicted','num'])
+    df_roc = pd.DataFrame(columns=['y_test', 'y_score', 'labels'], index=range(test_ground_truth.shape[0]))
+
+    predictions = classifier.predict(x=bottlenecks, as_iterable=True)
+
+    for key in all_label_names:
+      results_y_test[key] = []
+      results_y_score[key] = []
+
+    tmpdir = tempfile.mkdtemp()
+    workbook = xlsxwriter.Workbook(os.path.join(args.model_dir,'misclassified.xlsx'))
+    f2 = open(os.path.join(args.model_dir, 'misclassified.csv'), "w")
+    f2.write("Actual,Predicted,Filename\n")
+    worksheet = workbook.add_worksheet()
+    worksheet.write(0, 0, 'Thumbnail_Actual')
+    worksheet.write(0, 1, 'Actual_Category')
+    worksheet.write(0, 2, 'Actual_Group')
+    worksheet.write(0, 3, 'Predicted_Category')
+    worksheet.write(0, 4, 'Predicted_Group')
+    worksheet.write(0, 5, 'Exemplar_Predicted_Category')
+    worksheet.write(0, 6, 'Filename')
+
+    # calculate the scores for predictions as needed for scipy functions
+    row = 1
+    l = len(all_label_names)
+    num_groups = 13
+    y_true = np.zeros([test_ground_truth.shape[0], l])
+    y_pred = np.zeros([test_ground_truth.shape[0], l])
+
+    for j, p in enumerate(predictions):
+      print("---------")
+      y_score = p['class_vector']
+      category_predicted = int(np.argmax(y_score[0:l-1]))
+      group_predicted = int(np.argmax(y_score[l:2*l]))
+
+      category_actual = np.argmax(test_ground_truth[j, 0:l-1])
+      group_actual = np.argmax(test_ground_truth[j, l:2*l])
+
+      y_true[j][category_predicted] = 1
+      y_true[j][group_predicted] = 1
+      y_pred[j][category_actual]  = 1
+      y_pred[j][group_actual]  = 1
+      df_roc.iloc[j] = {'y_test': test_ground_truth[j], 'y_score': y_score, 'labels': all_label_names}
+
+      print("%i is predicted as %s/%s actual class %s/%s %i %i %i %i" % (j, all_label_names[category_predicted],
+                                                                         all_label_names[group_predicted],
+                                                                         all_label_names[category_actual],
+                                                                         all_label_names[group_actual],
+                                                                         category_predicted,
+                                                                         group_predicted,
+                                                                         category_actual,
+                                                                         group_actual))
+
+      print("%i is predicted as category %s actual class %s %i %i" % (j, all_label_names[category_predicted], all_label_names[category_actual], category_predicted, category_actual))
+      if df_category.ix[(df_category.actual == all_label_names[category_actual]) & (df_category.predicted == all_label_names[category_predicted])].empty:
+        df_category = df_category.append([{'actual': all_label_names[category_actual], 'predicted': all_label_names[category_predicted], 'num': 0}])
+        df_category.ix[(df_category.actual == all_label_names[category_actual]) & (df_category.predicted == all_label_names[category_predicted]), 'num'] += 1
+
+      print("%i is predicted as group %s actual class %s %i %i" % (j, all_label_names[group_predicted], all_label_names[group_actual], group_predicted, group_actual))
+      if df_category.ix[(df_category.actual == all_label_names[group_actual]) & (df_category.predicted == all_label_names[group_predicted])].empty:
+        df_category = df_category.append([{'actual': all_label_names[group_actual], 'predicted': all_label_names[group_predicted], 'num': 0}])
+        df_category.ix[(df_category.actual == all_label_names[group_actual]) & (df_category.predicted == all_label_names[group_predicted]), 'num'] += 1
+
+    if group_predicted is not group_actual or category_predicted is not category_actual:
+        f2.write("{0},{1},{2},{3},{4}\n".format(all_label_names[category_actual], all_label_names[group_actual], all_label_names[category_predicted], all_label_names[group_predicted], image_paths[j]))
+        thumbnail_file = crop(tmpdir, image_paths[j])
+        worksheet.set_row(row, height=50)
+        worksheet.insert_image(row, 0, thumbnail_file)
+        worksheet.write(row, 1, all_label_names[category_actual])
+        worksheet.write(row, 2, all_label_names[group_actual])
+        worksheet.write(row, 3, all_label_names[category_predicted])
+        worksheet.write(row, 4, all_label_names[group_predicted])
+        #thumbnail_file = crop(tmpdir, random.choice(exemplars[all_label_names[category_predicted]]))
+        #worksheet.insert_image(row, 5, thumbnail_file)
+        worksheet.write(row, 6, image_paths[j])
+        row += 1
+
+    accuracy_all = accuracy_score(y_true, y_pred)
+    precision_all = precision_score(y_true, y_pred, average='samples')
+    f1_all = f1_score(y_true, y_pred, average='samples')
+
+    df_roc.to_pickle(os.path.join(args.model_dir, 'metrics_roc.pkl'))
+
+    with open(os.path.join(args.model_dir,'metrics.csv'), "w") as f:
+      f.write("Distortion,Accuracy,Precision,F1\n")
+      if args.random_crop:
+        distortion = "{0}_{1:2d}".format("random_crop", int(args.random_crop))
+      if args.random_scale:
+        distortion = "{0}_{1:2d}".format("random_scale", int(args.random_scale))
+      if args.random_brightness:
+        distortion = "{0}_{1:2d}".format("random_brightness", int(args.random_brightness))
+      f.write("{0},{1:1.5f},{2:1.5f},{3:1.5f}\n".format(distortion, accuracy_all, precision_all, f1_all))
+
+    precision = precision_score(y_true, y_pred, average=None)
+    recall = recall_score(y_true, y_pred, average=None)
+    f1 = f1_score(y_true, y_pred, average=None)
+
+    with open(os.path.join(args.model_dir,'metrics_by_class.csv'), "w") as f:
+      f.write("Distortion,Class,NumTrainingImages,Accuracy,Precision,F1\n")
+      for i in range(len(recall)):
+        class_name = all_label_names[i]
+        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, label_totals[class_name], recall[i], precision[i], f1[i]))
+
+    # save CM as a csv file
+    with open(os.path.join(args.model_dir,'metrics_cm.csv'), "w") as f:
+      f.write(','.join(all_label_names) + '\n')
+      for i in range(len(all_label_names)):
+        class_name = all_label_names[i]
+        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, label_totals[class_name], recall[i], precision[i], f1[i]))
+
+    frames = [df_category, df_group]
+    df = pd.concat(frames)
+    df.to_csv(os.path.join(args.model_dir,'metrics_cm.csv'), float_format='%1.5f')
+    print('Done')
+
+    workbook.close()
+    shutil.rmtree(tmpdir)
 
 def crop(tmpdir, image_path):
   path, filename = os.path.split(image_path)
