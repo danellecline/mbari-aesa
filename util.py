@@ -921,23 +921,29 @@ def save_metrics_category_group(args, classifier, bottlenecks, all_label_names, 
     row = 1
     l = len(all_label_names)
     num_groups = 13
+
+    # binary output for multlabel case
     y_true = np.zeros([test_ground_truth.shape[0], l])
     y_pred = np.zeros([test_ground_truth.shape[0], l])
 
     for j, p in enumerate(predictions):
       print("---------")
       y_score = p['class_vector']
+      # get the indexes of the max per each label
       category_predicted = int(np.argmax(y_score[0:l-1]))
       group_predicted = int(np.argmax(y_score[l:2*l]))
 
       category_actual = np.argmax(test_ground_truth[j, 0:l-1])
       group_actual = np.argmax(test_ground_truth[j, l:2*l])
 
-      y_true[j][category_predicted] = 1
-      y_true[j][group_predicted] = 1
-      y_pred[j][category_actual]  = 1
-      y_pred[j][group_actual]  = 1
-      df_roc.iloc[j] = {'y_test': test_ground_truth[j], 'y_score': y_score, 'labels': all_label_names}
+      y_true[j][category_actual] = 1
+      y_true[j][group_actual] = 1
+      y_pred[j][category_predicted]  = 1
+      y_pred[j][group_predicted]  = 1
+
+      # combine the scores for category and group - not sure if this is accurate
+      score = y_score[0:l-1-num_groups].tolist() + y_score[2*l - num_groups - 1:2*l].tolist()
+      df_roc.iloc[j] = {'y_test': y_true[j], 'y_score': score, 'labels': all_label_names }
 
       print("%i is predicted as %s/%s actual class %s/%s %i %i %i %i" % (j, all_label_names[category_predicted],
                                                                          all_label_names[group_predicted],

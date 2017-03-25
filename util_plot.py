@@ -17,13 +17,10 @@ Utility class for miscellaneous learning plot functions
 import matplotlib
 matplotlib.use('Agg')
 
-import json
-import io
 import os
 import math
 import numpy as np
 import fnmatch
-import tensorflow as tf
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
@@ -31,7 +28,6 @@ import matplotlib.gridspec as gridspec
 import pandas as pd
 
 from matplotlib.lines import Line2D
-from tensorflow.python.platform import gfile
 
 linestyles = ['-', '--', ':']
 markers = []

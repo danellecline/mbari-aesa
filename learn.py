@@ -292,20 +292,20 @@ if __name__ == '__main__':
                           jpeg_data_tensor, bottleneck_tensor)
 
       if args.multilabel_category_group:
-        train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
+        train_bottlenecks, train_ground_truth, image_paths, all_label_names, label_totals = util.get_all_cached_bottlenecks_multilabel_category_group(
                                                                             sess, df,
                                                                             image_lists, 'training',
                                                                             args.bottleneck_dir, args.image_dir,
                                                                             jpeg_data_tensor, bottleneck_tensor)
       elif args.multilabel_group_feedingtype:
-        train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
+        train_bottlenecks, train_ground_truth, image_paths, all_label_names, label_totals = util.get_all_cached_bottlenecks_multilabel_feedingtype(
                                                                             sess, df,
                                                                             image_lists, 'training',
                                                                             args.bottleneck_dir, args.image_dir,
                                                                             jpeg_data_tensor, bottleneck_tensor)
 
       else:
-        train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
+        train_bottlenecks, train_ground_truth, image_paths, all_label_names, label_totals = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
                                                                               args.bottleneck_dir, args.image_dir,
                                                                               jpeg_data_tensor, bottleneck_tensor)
       train_bottlenecks = np.array(train_bottlenecks)
@@ -343,7 +343,7 @@ if __name__ == '__main__':
 
       # We've completed our training, so run a test evaluation on some new images we haven't used before.
       if args.multilabel_category_group:
-        test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
+        test_bottlenecks, test_ground_truth, image_paths, all_label_names, label_totals = util.get_all_cached_bottlenecks_multilabel_category_group(
                                                             sess, df, image_lists, 'testing',
                                                             args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
                                                             bottleneck_tensor)
@@ -374,24 +374,14 @@ if __name__ == '__main__':
         with gfile.FastGFile(output_labels_file, 'w') as f:
           f.write(output_labels)
 
-      # these plots don't apply to multilabels
+      print("\nSaving metrics...")
       if not args.multilabel_category_group and not args.multilabel_group_feedingtype:
-        print("\nSaving metrics...")
         util.save_metrics(args, classifier, test_bottlenecks.astype(np.float32), all_label_names, test_ground_truth,
-                          image_paths, image_lists, exemplars)
-
-      for name in image_lists.iterkeys():
-          dir = image_lists[name]['dir']
-          paths = [ '%s/%s/%s'%(args.image_dir, dir, filename) for filename in image_lists[name]['testing'] ]
-
-      add_images(sess, paths, args.model_dir)
-    else:
-      print("\nPredicting...")
-      img_list = util.get_prediction_images(args.prediction_image_dir)
-      if not img_list:
-        print("No images found in %s" % args.prediction_image_dir)
+                          image_paths, image_lists, exemplars, label_totals)
       else:
-        util.make_image_predictions(output_labels_file, classifier, jpeg_data_tensor, bottleneck_tensor,
-                                    img_list, labels_list, os.path.join(args.prediction_image_dir,'classified'))
+        util.save_metrics_category_group(args, classifier, test_bottlenecks.astype(np.float32), all_label_names, test_ground_truth,
+                            image_paths, image_lists, exemplars, label_totals)
+
+      util_plot.plot_metrics(args.model_dir, 'multilabel_category_group')
 
 print("Done !")
