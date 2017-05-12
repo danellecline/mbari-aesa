@@ -383,5 +383,12 @@ if __name__ == '__main__':
                             image_paths, image_lists, exemplars, label_totals)
 
       util_plot.plot_metrics(args.model_dir, 'multilabel_category_group')
-
+    else:
+        print("\nPredicting...")
+        img_list = util.get_prediction_images(args.prediction_image_dir)
+        if not img_list:
+          print("No images found in %s" % args.prediction_image_dir)
+        else:
+          util.make_image_predictions(output_labels_file, classifier, jpeg_data_tensor, bottleneck_tensor,
+                                      img_list, labels_list, os.path.join(args.prediction_image_dir,'classified'))
 print("Done !")
