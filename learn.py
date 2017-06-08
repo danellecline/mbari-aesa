@@ -99,17 +99,15 @@ def process_command_line():
     args = parser.parse_args()
     return args
 
-def create_inception_graph(model_filename):
+def create_inception_graph(sess, model_filename):
   """"Creates a graph from saved GraphDef file and returns a Graph object.
 
   Returns:
     Graph holding the trained Inception network, and various tensors we'll be
     manipulating.
   """
-  with tf.Session() as sess:
-
-    # import the graph and give me nodes where we want to pull the bottleneck data from
-    with gfile.FastGFile(model_filename, 'rb') as f:
+  # import the graph and give me nodes where we want to pull the bottleneck data from
+  with gfile.FastGFile(model_filename, 'rb') as f:
       graph_def = tf.GraphDef()
       graph_def.ParseFromString(f.read())
       bottleneck_tensor, jpeg_data_tensor, resized_input_tensor = (
@@ -243,12 +241,15 @@ if __name__ == '__main__':
       print("Require the annotation file to determine the partial specimen images")
       exit(-1)'''
 
+
+    sess = tf.Session()
+
     # Set up the pre-trained graph.
     print("Using model directory {0} and model from {1}".format(args.model_dir, conf.DATA_URL))
     util.ensure_dir(args.model_dir)
     util.maybe_download_and_extract(data_url=conf.DATA_URL, dest_dir=args.incp_model_dir)
     model_filename = os.path.join(args.incp_model_dir, conf.MODEL_GRAPH_NAME)
-    graph, bottleneck_tensor, jpeg_data_tensor, resized_image_tensor=(create_inception_graph(model_filename))
+    graph, bottleneck_tensor, jpeg_data_tensor, resized_image_tensor=(create_inception_graph(sess, model_filename))
 
     labels_list = None
     output_labels_file = os.path.join(args.model_dir, "output_labels.json")
@@ -278,7 +279,6 @@ if __name__ == '__main__':
       # See if the command-line flags mean we're applying any distortions.
       do_distort_images =  (args.flip_left_right or (args.random_crop != 0) or (args.random_scale != 0) or
                             (args.random_brightness != 0))
-      sess = tf.Session()
 
       if do_distort_images:
         # We will be applying distortions, so setup the operations we'll need.
@@ -292,20 +292,20 @@ if __name__ == '__main__':
                           jpeg_data_tensor, bottleneck_tensor)
 
       if args.multilabel_category_group:
-        train_bottlenecks, train_ground_truth, image_paths, all_label_names, label_totals = util.get_all_cached_bottlenecks_multilabel_category_group(
+        train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
                                                                             sess, df,
                                                                             image_lists, 'training',
                                                                             args.bottleneck_dir, args.image_dir,
                                                                             jpeg_data_tensor, bottleneck_tensor)
       elif args.multilabel_group_feedingtype:
-        train_bottlenecks, train_ground_truth, image_paths, all_label_names, label_totals = util.get_all_cached_bottlenecks_multilabel_feedingtype(
+        train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_feedingtype(
                                                                             sess, df,
                                                                             image_lists, 'training',
                                                                             args.bottleneck_dir, args.image_dir,
                                                                             jpeg_data_tensor, bottleneck_tensor)
 
       else:
-        train_bottlenecks, train_ground_truth, image_paths, all_label_names, label_totals = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
+        train_bottlenecks, train_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks(sess, image_lists, 'training',
                                                                               args.bottleneck_dir, args.image_dir,
                                                                               jpeg_data_tensor, bottleneck_tensor)
       train_bottlenecks = np.array(train_bottlenecks)
@@ -343,7 +343,7 @@ if __name__ == '__main__':
 
       # We've completed our training, so run a test evaluation on some new images we haven't used before.
       if args.multilabel_category_group:
-        test_bottlenecks, test_ground_truth, image_paths, all_label_names, label_totals = util.get_all_cached_bottlenecks_multilabel_category_group(
+        test_bottlenecks, test_ground_truth, image_paths, all_label_names = util.get_all_cached_bottlenecks_multilabel_category_group(
                                                             sess, df, image_lists, 'testing',
                                                             args.bottleneck_dir, args.image_dir, jpeg_data_tensor,
                                                             bottleneck_tensor)
@@ -359,6 +359,7 @@ if __name__ == '__main__':
                                                               bottleneck_tensor)
       test_bottlenecks = np.array(test_bottlenecks)
       test_ground_truth = np.array(test_ground_truth)
+
       print("evaluating....")
       if args.multilabel_category_group or args.multilabel_group_feedingtype:
         print("Evaluating cached bottlenecks")
@@ -376,13 +377,13 @@ if __name__ == '__main__':
 
       print("\nSaving metrics...")
       if not args.multilabel_category_group and not args.multilabel_group_feedingtype:
-        util.save_metrics(args, classifier, test_bottlenecks.astype(np.float32), all_label_names, test_ground_truth,
-                          image_paths, image_lists, exemplars, label_totals)
+        util.save_metrics(args, classifier, test_bottlenecks.astype(np.float32), all_label_names,
+                          test_ground_truth, image_paths, image_lists)
+        util_plot.plot_metrics(args.model_dir, '')
       else:
-        util.save_metrics_category_group(args, classifier, test_bottlenecks.astype(np.float32), all_label_names, test_ground_truth,
-                            image_paths, image_lists, exemplars, label_totals)
-
-      util_plot.plot_metrics(args.model_dir, 'multilabel_category_group')
+        util.save_metrics_category_group(args, classifier, test_bottlenecks.astype(np.float32), all_label_names,
+                                         test_ground_truth, image_paths, image_lists)
+        util_plot.plot_metrics(args.model_dir, 'multilabel_category_group')
     else:
         print("\nPredicting...")
         img_list = util.get_prediction_images(args.prediction_image_dir)

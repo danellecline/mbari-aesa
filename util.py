@@ -49,7 +49,7 @@ def get_prediction_images(img_dir):
   if not gfile.Exists(img_dir):
     print("Image directory '" + img_dir + "' not found.")
     return None
-  print("Looking for images in '" + img_dir + "'")
+  print("Looking for prediction images in '" + img_dir + "'")
   for extension in extensions:
     file_glob = os.path.join(img_dir, '*.' + extension)
     file_list.extend(glob.glob(file_glob))
@@ -200,7 +200,7 @@ def create_image_exemplars(image_dir):
     dir_name = os.path.basename(sub_dir)
     if dir_name == image_dir:
       continue
-    print("Looking for images in '" + dir_name + "'")
+    print("Looking for exemplar images in '" + dir_name + "'")
     for extension in extensions:
       file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
       file_list.extend(glob.glob(file_glob))
@@ -276,7 +276,7 @@ def create_image_lists(df, skiplt50, exclude_unknown, exclude_partials, output_l
     if exclude_unknown and "UNKNOWN" is dir_name :
         print('------------>Skipping UKNOWN directory <-----------')
         continue
-    print("Looking for images in '" + dir_name + "'")
+    print("Looking for training/test images in '" + dir_name + "'")
     for extension in extensions:
       file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
       if exclude_partials:
@@ -331,6 +331,7 @@ def create_image_lists(df, skiplt50, exclude_unknown, exclude_partials, output_l
         'training': training_images,
         'testing': testing_images,
         'validation': validation_images,
+        'num_training_images': len(training_images),
     }
 
   labels = json.dumps(list(labels_lt20))
@@ -792,7 +793,7 @@ def add_input_distortions(flip_left_right, random_crop, random_scale, random_bri
   return jpeg_data, distort_result
 
 
-def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_paths, image_lists, exemplars):
+def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_paths, image_lists):
 
   sess = tf.Session()
   with sess.as_default():
@@ -862,6 +863,8 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
         distortion = "{0}_{1:2d}".format("random_scale", int(args.random_scale))
       if args.random_brightness:
         distortion = "{0}_{1:2d}".format("random_brightness", int(args.random_brightness))
+      else:
+        distortion = ""
       f.write("{0},{1:1.5f},{2:1.5f},{3:1.5f}\n".format(distortion, accuracy_all, precision_all, f1_all))
 
     ind = np.arange(len(all_label_names))  # the x locations for the classes
@@ -888,7 +891,7 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
     workbook.close()
     shutil.rmtree(tmpdir)
 
-def save_metrics_category_group(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_paths, image_lists, exemplars, label_totals):
+def save_metrics_category_group(args, classifier, bottlenecks, all_label_names, test_ground_truth, image_paths, image_lists):
 
   sess = tf.Session()
   with sess.as_default():
@@ -1002,14 +1005,14 @@ def save_metrics_category_group(args, classifier, bottlenecks, all_label_names, 
       f.write("Distortion,Class,NumTrainingImages,Accuracy,Precision,F1\n")
       for i in range(len(recall)):
         class_name = all_label_names[i]
-        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, label_totals[class_name], recall[i], precision[i], f1[i]))
+        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
 
     # save CM as a csv file
     with open(os.path.join(args.model_dir,'metrics_cm.csv'), "w") as f:
       f.write(','.join(all_label_names) + '\n')
       for i in range(len(all_label_names)):
         class_name = all_label_names[i]
-        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, label_totals[class_name], recall[i], precision[i], f1[i]))
+        f.write("{0},{1},{2},{3:1.5f},{4:1.5f},{5:1.5f}\n".format(distortion, class_name, image_lists[class_name]['num_training_images'], recall[i], precision[i], f1[i]))
 
     frames = [df_category, df_group]
     df = pd.concat(frames)
