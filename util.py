@@ -823,7 +823,6 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
     worksheet.write(0, 4, 'Filename')
 
     # calculate the scores for predictions as needed for scipy functions
-    row = 1
     for j, p in enumerate(predictions):
       print("---------")
       predicted = int(p['index'])
@@ -840,17 +839,16 @@ def save_metrics(args, classifier, bottlenecks, all_label_names, test_ground_tru
       if predicted is not actual:
         f2.write("{0},{1},{2}\n".format(all_label_names[actual], all_label_names[predicted], image_paths[j]))
         thumbnail_file = crop(tmpdir, image_paths[j])
-        worksheet.set_row(row, height=50)
-        worksheet.insert_image(row, 0, thumbnail_file)
-        worksheet.write(row, 1, all_label_names[actual])
-        worksheet.write(row, 2, all_label_names[predicted])
+        worksheet.set_row(j, height=50)
+        worksheet.insert_image(j, 0, thumbnail_file)
+        worksheet.write(j, 1, all_label_names[actual])
+        worksheet.write(j, 2, all_label_names[predicted])
         try:
             thumbnail_file = crop(tmpdir, random.choice(exemplars[all_label_names[predicted]]))
-            worksheet.insert_image(row, 3, thumbnail_file)
+            worksheet.insert_image(j, 3, thumbnail_file)
 	      except Exception as ex:
       	    print ex
-        worksheet.write(row, 4, image_paths[j])
-        row += 1
+        worksheet.write(j, 4, image_paths[j])
 
     accuracy_all = accuracy_score(y_true, y_predicted)
     precision_all = precision_score(y_true, y_predicted)
