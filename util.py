@@ -928,7 +928,7 @@ def save_metrics_category_group(args, classifier, bottlenecks, all_label_names, 
     l = len(all_label_names)
     num_groups = 13
 
-    # binary output for multlabel case
+    # binary output for multilabel case
     y_true = np.zeros([test_ground_truth.shape[0], l])
     y_predicted = np.zeros([test_ground_truth.shape[0], l])
 
@@ -936,7 +936,7 @@ def save_metrics_category_group(args, classifier, bottlenecks, all_label_names, 
       print("---------")
       y_score = p['class_vector']
       # get the indexes of the max per each label
-      category_predictedicted = int(np.argmax(y_score[0:l-1]))
+      category_predicted = int(np.argmax(y_score[0:l-1]))
       group_predicted = int(np.argmax(y_score[l:2*l]))
 
       category_actual = np.argmax(test_ground_truth[j, 0:l-1])
@@ -944,42 +944,42 @@ def save_metrics_category_group(args, classifier, bottlenecks, all_label_names, 
 
       y_true[j][category_actual] = 1
       y_true[j][group_actual] = 1
-      y_predicted[j][category_predictedicted]  = 1
+      y_predicted[j][category_predicted]  = 1
       y_predicted[j][group_predicted]  = 1
 
       # combine the scores for category and group - not sure if this is accurate
       score = y_score[0:l-1-num_groups].tolist() + y_score[2*l - num_groups - 1:2*l].tolist()
       df_roc.iloc[j] = {'y_test': y_true[j], 'y_score': score, 'labels': all_label_names }
 
-      print("%i is predicted as %s/%s actual class %s/%s %i %i %i %i" % (j, all_label_names[category_predictedicted],
+      print("%i is predicted as %s/%s actual class %s/%s %i %i %i %i" % (j, all_label_names[category_predicted],
                                                                          all_label_names[group_predicted],
                                                                          all_label_names[category_actual],
                                                                          all_label_names[group_actual],
-                                                                         category_predictedicted,
+                                                                         category_predicted,
                                                                          group_predicted,
                                                                          category_actual,
                                                                          group_actual))
 
-      print("%i is predicted as category %s actual class %s %i %i" % (j, all_label_names[category_predictedicted], all_label_names[category_actual], category_predictedicted, category_actual))
-      if df_category.ix[(df_category.actual == all_label_names[category_actual]) & (df_category.predicted == all_label_names[category_predictedicted])].empty:
-        df_category = df_category.append([{'actual': all_label_names[category_actual], 'predicted': all_label_names[category_predictedicted], 'num': 0}])
-        df_category.ix[(df_category.actual == all_label_names[category_actual]) & (df_category.predicted == all_label_names[category_predictedicted]), 'num'] += 1
+      print("%i is predicted as category %s actual class %s %i %i" % (j, all_label_names[category_predicted], all_label_names[category_actual], category_predicted, category_actual))
+      if df_category.ix[(df_category.actual == all_label_names[category_actual]) & (df_category.predicted == all_label_names[category_predicted])].empty:
+        df_category = df_category.append([{'actual': all_label_names[category_actual], 'predicted': all_label_names[category_predicted], 'num': 0}])
+        df_category.ix[(df_category.actual == all_label_names[category_actual]) & (df_category.predicted == all_label_names[category_predicted]), 'num'] += 1
 
       print("%i is predicted as group %s actual class %s %i %i" % (j, all_label_names[group_predicted], all_label_names[group_actual], group_predicted, group_actual))
       if df_category.ix[(df_category.actual == all_label_names[group_actual]) & (df_category.predicted == all_label_names[group_predicted])].empty:
         df_category = df_category.append([{'actual': all_label_names[group_actual], 'predicted': all_label_names[group_predicted], 'num': 0}])
         df_category.ix[(df_category.actual == all_label_names[group_actual]) & (df_category.predicted == all_label_names[group_predicted]), 'num'] += 1
 
-    if group_predicted is not group_actual or category_predictedicted is not category_actual:
-        f2.write("{0},{1},{2},{3},{4}\n".format(all_label_names[category_actual], all_label_names[group_actual], all_label_names[category_predictedicted], all_label_names[group_predicted], image_paths[j]))
+    if group_predicted is not group_actual or category_predicted is not category_actual:
+        f2.write("{0},{1},{2},{3},{4}\n".format(all_label_names[category_actual], all_label_names[group_actual], all_label_names[category_predicted], all_label_names[group_predicted], image_paths[j]))
         thumbnail_file = crop(tmpdir, image_paths[j])
         worksheet.set_row(row, height=50)
         worksheet.insert_image(row, 0, thumbnail_file)
         worksheet.write(row, 1, all_label_names[category_actual])
         worksheet.write(row, 2, all_label_names[group_actual])
-        worksheet.write(row, 3, all_label_names[category_predictedicted])
+        worksheet.write(row, 3, all_label_names[category_predicted])
         worksheet.write(row, 4, all_label_names[group_predicted])
-        #thumbnail_file = crop(tmpdir, random.choice(exemplars[all_label_names[category_predictedicted]]))
+        #thumbnail_file = crop(tmpdir, random.choice(exemplars[all_label_names[category_predicted]]))
         #worksheet.insert_image(row, 5, thumbnail_file)
         worksheet.write(row, 6, image_paths[j])
         row += 1
